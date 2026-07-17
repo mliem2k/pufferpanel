@@ -41,7 +41,7 @@ export class Environment extends EventEmitter {
   }
 
   getStatus(): ServerStatus {
-    return this.status;
+    return { ...this.status };
   }
 
   async start(data: ExecutionData): Promise<void> {

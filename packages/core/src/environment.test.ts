@@ -110,4 +110,16 @@ describe("Environment", () => {
     expect(result).toEqual({ cpu: 1.5, memory: 1024 });
     expect(stats).toEqual([{ cpu: 1.5, memory: 1024 }]);
   });
+
+  test("console buffer caps at 500 entries and evicts oldest first", async () => {
+    const impl = new FakeEnvironmentImpl();
+    const env = new Environment(impl);
+    for (let i = 0; i < 550; i++) {
+      impl.emitLine(`line-${i}`);
+    }
+    const history = env.getConsoleHistory();
+    expect(history).toHaveLength(500);
+    expect(history[0]).toBe("line-50");
+    expect(history[history.length - 1]).toBe("line-549");
+  });
 });
