@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { treaty } from "@elysiajs/eden";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createUser } from "@pufferpanel/services/user";
-import { createNode } from "@pufferpanel/services/node";
-import { grantScopes } from "@pufferpanel/services/permission";
-import { SCOPES } from "@pufferpanel/scopes";
-import { createPanelApp } from "../app";
+import { createTestDb } from "../../db/test-helper";
+import { createUser } from "../users/service";
+import { createNode } from "../nodes/service";
+import { grantScopes } from "../auth/permission";
+import { SCOPES } from "../../scopes";
+import { createPanelApp } from "../../app";
 
 async function loginAs(api: ReturnType<typeof treaty>, username: string, password: string) {
   const { response } = await api.auth.login.post({ username, password });

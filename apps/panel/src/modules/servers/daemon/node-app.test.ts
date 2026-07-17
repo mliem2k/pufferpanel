@@ -3,10 +3,10 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { treaty } from "@elysiajs/eden";
-import { EnvironmentBusyError } from "@pufferpanel/core/environment";
-import { TtyEnvironmentImpl } from "@pufferpanel/environments/tty";
+import { EnvironmentBusyError } from "./environment";
+import { TtyEnvironmentImpl } from "./tty-environment";
 import { ServerRegistry } from "./registry";
-import { createNodeApp } from "./app";
+import { createNodeApp } from "./node-app";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -158,7 +158,7 @@ describe("Node app", () => {
     // and the client's close would essentially never land before listener
     // registration. This mirrors the delay technique already used elsewhere
     // in this phase to expose await-boundary races (see
-    // packages/core/src/environment.test.ts's "concurrent start() calls" test
+    // this module's environment.test.ts "concurrent start() calls" test
     // and this file's "concurrent second start" test below).
     const originalGet = registry.getOrCreateEnvironment.bind(registry);
     registry.getOrCreateEnvironment = async (identifier: string) => {
@@ -240,7 +240,7 @@ describe("Node app", () => {
     const api = treaty(createNodeApp(registry));
 
     // Widen the in-flight race window (mirroring the delay technique used by
-    // packages/core/src/environment.test.ts's "concurrent start() calls only
+    // this module's environment.test.ts "concurrent start() calls only
     // spawn once" test) by making the real process spawn take a moment. Since
     // this patches a shared prototype method, it must be restored afterwards.
     const originalExecuteAsync = TtyEnvironmentImpl.prototype.executeAsync;

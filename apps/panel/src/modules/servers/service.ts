@@ -1,5 +1,5 @@
-import type { PanelDb } from "@pufferpanel/models/db";
-import { servers } from "@pufferpanel/models/schema";
+import type { PanelDb } from "../../db/client";
+import { servers } from "../../db/schema";
 import { eq } from "drizzle-orm";
 
 export interface CreateServerInput {

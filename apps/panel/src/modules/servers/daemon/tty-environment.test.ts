@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { TtyEnvironmentImpl, tokenizeCommand } from "./tty";
+import { TtyEnvironmentImpl, tokenizeCommand } from "./tty-environment";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   return new Promise((resolve, reject) => {

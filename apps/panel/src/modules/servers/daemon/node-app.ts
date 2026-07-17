@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { Elysia, status, t } from "elysia";
-import { EnvironmentBusyError, type Environment } from "@pufferpanel/core/environment";
+import { EnvironmentBusyError, type Environment } from "./environment";
 import type { ServerRegistry } from "./registry";
 
 const ALREADY_RUNNING_MESSAGE = "server is already running";

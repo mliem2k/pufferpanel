@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Value, type ServerDefinitionType, ServerDefinition } from "@pufferpanel/core/server-definition";
-import { Environment } from "@pufferpanel/core/environment";
-import { TtyEnvironmentImpl } from "@pufferpanel/environments/tty";
+import { Value, type ServerDefinitionType, ServerDefinition } from "../../templates/server-definition";
+import { Environment } from "./environment";
+import { TtyEnvironmentImpl } from "./tty-environment";
 
 export class ServerRegistry {
   private environments = new Map<string, Environment>();

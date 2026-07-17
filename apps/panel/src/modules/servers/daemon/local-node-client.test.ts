@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NodeClientHttpError } from "@pufferpanel/services/node-client";
+import { NodeClientHttpError } from "./node-client";
 import { ServerRegistry } from "./registry";
-import { createNodeApp } from "./app";
-import { createLocalNodeClient } from "./node-client-local";
+import { createNodeApp } from "./node-app";
+import { createLocalNodeClient } from "./local-node-client";
 
 describe("createLocalNodeClient", () => {
   test("start, status, and stop delegate to the Node app over an in-process request", async () => {

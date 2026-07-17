@@ -1,5 +1,5 @@
-import { NodeClientHttpError, type NodeClient } from "@pufferpanel/services/node-client";
-import type { NodeApp } from "./app";
+import { NodeClientHttpError, type NodeClient } from "./node-client";
+import type { NodeApp } from "./node-app";
 
 export function createLocalNodeClient(nodeApp: NodeApp): NodeClient {
   async function call(path: string, method: string): Promise<Record<string, unknown>> {

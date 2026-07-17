@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Environment } from "@pufferpanel/core/environment";
-import { TtyEnvironmentImpl } from "./tty";
+import { Environment } from "./environment";
+import { TtyEnvironmentImpl } from "./tty-environment";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   return new Promise((resolve, reject) => {

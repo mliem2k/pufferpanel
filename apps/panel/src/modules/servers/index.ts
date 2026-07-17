@@ -1,19 +1,19 @@
 import { Elysia, status, t } from "elysia";
-import { SCOPES } from "@pufferpanel/scopes";
+import { SCOPES } from "../../scopes";
 import {
   createServer,
   listServers,
   getServerByIdentifier,
   updateServer,
   deleteServer,
-} from "@pufferpanel/services/server";
+} from "./service";
 import {
   createNodeClient,
   NodeClientHttpError,
   NodeClientNotImplementedError,
   type NodeClient,
-} from "@pufferpanel/services/node-client";
-import type { AuthPlugin } from "../auth-plugin";
+} from "./daemon/node-client";
+import type { AuthPlugin } from "../auth/plugin";
 
 export function createServerRoutes(
   authPlugin: AuthPlugin,

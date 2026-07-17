@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createNode } from "./node";
-import { createServer, listServers, getServerByIdentifier, deleteServer } from "./server";
+import { createTestDb } from "../../db/test-helper";
+import { createNode } from "../nodes/service";
+import { createServer, listServers, getServerByIdentifier, deleteServer } from "./service";
 
 describe("server service", () => {
   test("creates a server tied to a node", async () => {

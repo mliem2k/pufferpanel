@@ -1,5 +1,5 @@
 import pidusage from "pidusage";
-import type { EnvironmentImpl, ExecutionData, ServerStats } from "@pufferpanel/core/environment-impl";
+import type { EnvironmentImpl, ExecutionData, ServerStats } from "./environment-impl";
 
 // Splits a shell-style command string into argv tokens.
 //
