@@ -35,7 +35,7 @@ export function createAuthPlugin(db: PanelDb, cookieSecret: string) {
             return status(401, { error: "unauthenticated" });
           }
           const serverIdentifier = required.forServer
-            ? (params as Record<string, string | undefined>).identifier
+            ? (params as Record<string, string | undefined> | undefined)?.identifier
             : undefined;
           const actor: Actor = { userId };
           const allowed = await hasScope(db, actor, required, serverIdentifier);
