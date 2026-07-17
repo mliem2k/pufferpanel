@@ -2,6 +2,12 @@ import type { PanelDb } from "@pufferpanel/models/db";
 import { clients } from "@pufferpanel/models/schema";
 import { eq } from "drizzle-orm";
 
+// Pre-computed dummy hash for timing side-channel protection
+const DUMMY_HASH_FOR_TIMING_SAFETY = await Bun.password.hash("dummy-password-for-timing-safety", {
+  algorithm: "bcrypt",
+  cost: 10,
+});
+
 export interface CreateClientInput {
   userId: number;
   name: string;
@@ -58,7 +64,9 @@ export async function verifyClientCredentials(
   clientSecret: string,
 ) {
   const [row] = await db.select().from(clients).where(eq(clients.clientId, clientId));
-  if (!row) return null;
-  const valid = await Bun.password.verify(clientSecret, row.hashedClientSecret);
-  return valid ? row : null;
+  const hashToCheck = row?.hashedClientSecret ?? DUMMY_HASH_FOR_TIMING_SAFETY;
+  const valid = await Bun.password.verify(clientSecret, hashToCheck);
+  if (!row || !valid) return null;
+  const { hashedClientSecret, ...safeRow } = row;
+  return safeRow;
 }
