@@ -16,6 +16,7 @@ export interface StopOptions {
 export class Environment extends EventEmitter {
   private consoleBuffer: string[] = [];
   private status: ServerStatus = { running: false, installing: false };
+  private startInFlight: Promise<void> | null = null;
 
   constructor(private readonly impl: EnvironmentImpl) {
     super();
@@ -45,6 +46,27 @@ export class Environment extends EventEmitter {
   }
 
   async start(data: ExecutionData): Promise<void> {
+    // The startInFlight check-and-claim below must complete with no `await`
+    // in between, mirroring ServerRegistry.getOrCreateEnvironment's
+    // pending-map pattern: calling `this.doStart(data)` runs synchronously up
+    // to its first internal `await` and returns a pending Promise, which is
+    // assigned to `this.startInFlight` still within that same synchronous
+    // turn. A second start() call arriving at any point after this line -
+    // whether before or after doStart's own `isRunning()` check resolves -
+    // will see `startInFlight` already set and reject immediately, instead of
+    // both callers observing "not running" and both spawning a process.
+    if (this.startInFlight) {
+      throw new Error("server is already starting");
+    }
+    this.startInFlight = this.doStart(data);
+    try {
+      await this.startInFlight;
+    } finally {
+      this.startInFlight = null;
+    }
+  }
+
+  private async doStart(data: ExecutionData): Promise<void> {
     if (await this.isRunning()) {
       throw new Error("server is already running");
     }

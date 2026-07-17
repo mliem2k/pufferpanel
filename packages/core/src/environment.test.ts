@@ -130,6 +130,51 @@ describe("Environment", () => {
     expect(await env.isRunning()).toBe(false);
   });
 
+  test("concurrent start() calls only spawn once, others reject", async () => {
+    const impl = new FakeEnvironmentImpl();
+    let executeCount = 0;
+    const originalExecute = impl.executeAsync.bind(impl);
+    impl.executeAsync = async (data: ExecutionData) => {
+      executeCount++;
+      // Give the race a realistic window: without the in-flight guard, both
+      // concurrent callers would observe isRunning() === false during this
+      // delay and both proceed to spawn.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      await originalExecute(data);
+    };
+    const env = new Environment(impl);
+
+    const results = await Promise.allSettled([
+      env.start({ command: "echo hi", cwd: "." }),
+      env.start({ command: "echo hi", cwd: "." }),
+      env.start({ command: "echo hi", cwd: "." }),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(2);
+    expect(executeCount).toBe(1);
+    expect(env.getStatus().running).toBe(true);
+  });
+
+  test("after a concurrent burst settles, start() can be called again once stopped", async () => {
+    const impl = new FakeEnvironmentImpl();
+    const env = new Environment(impl);
+
+    await Promise.allSettled([
+      env.start({ command: "echo hi", cwd: "." }),
+      env.start({ command: "echo hi", cwd: "." }),
+    ]);
+    expect(env.getStatus().running).toBe(true);
+
+    // startInFlight must have been reset even though two calls raced, so a
+    // legitimate later start (after stopping) is not permanently locked out.
+    await env.stop({ stopCommand: "stop", gracefulTimeoutMs: 200 });
+    await env.start({ command: "echo hi", cwd: "." });
+    expect(env.getStatus().running).toBe(true);
+  });
+
   test("console buffer caps at 500 entries and evicts oldest first", async () => {
     const impl = new FakeEnvironmentImpl();
     const env = new Environment(impl);
