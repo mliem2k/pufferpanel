@@ -7,7 +7,7 @@ import { SCOPES } from "@pufferpanel/scopes";
 import { createPanelApp } from "./app";
 
 describe("Phase 1 acceptance", () => {
-  test("login, create a node, create a server, create and list a template, then hit the daemon stub", async () => {
+  test("login, create a node, create a server, create and list a template, then hit the daemon", async () => {
     const db = createTestDb();
     const admin = await createUser(db, {
       username: "admin",
@@ -62,7 +62,10 @@ describe("Phase 1 acceptance", () => {
     const templates = await api.templates.local.get(auth);
     expect(templates.data).toHaveLength(1);
 
+    // No on-disk server definition was written for this test (no dataDir
+    // override), so the real daemon reports 404 rather than the old Phase 1
+    // "not implemented" 501 stub.
     const start = await api.servers({ identifier: "mliem" }).start.post(null, auth);
-    expect(start.error?.status).toBe(501);
+    expect(start.error?.status).toBe(404);
   });
 });

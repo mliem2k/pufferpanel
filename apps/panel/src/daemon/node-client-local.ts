@@ -1,11 +1,16 @@
-import type { NodeClient } from "@pufferpanel/services/node-client";
+import { NodeClientHttpError, type NodeClient } from "@pufferpanel/services/node-client";
 import type { NodeApp } from "./app";
 
 export function createLocalNodeClient(nodeApp: NodeApp): NodeClient {
   async function call(path: string, method: string): Promise<Record<string, unknown>> {
     const response = await nodeApp.handle(new Request(`http://localhost${path}`, { method }));
     if (!response.ok) {
-      throw new Error(`node request failed: ${method} ${path} returned ${response.status}`);
+      const body = await response.json().catch(() => null);
+      const message =
+        (body && typeof body === "object" && typeof (body as { error?: unknown }).error === "string"
+          ? (body as { error: string }).error
+          : undefined) ?? `node request failed: ${method} ${path} returned ${response.status}`;
+      throw new NodeClientHttpError(response.status, message);
     }
     return response.json();
   }

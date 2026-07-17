@@ -10,6 +10,20 @@ export class NodeClientNotImplementedError extends Error {
   }
 }
 
+// Thrown by real (non-stub) NodeClient implementations - e.g. the local,
+// in-process daemon client - when the underlying node request fails with a
+// non-2xx HTTP status. Carries that status through so callers (the /servers
+// routes) can reflect it back to the Panel API caller instead of collapsing
+// every failure into a generic 500.
+export class NodeClientHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 class NotImplementedNodeClient implements NodeClient {
   async start(): Promise<{ accepted: boolean }> {
     throw new NodeClientNotImplementedError();

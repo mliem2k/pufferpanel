@@ -9,6 +9,7 @@ import {
 } from "@pufferpanel/services/server";
 import {
   createNodeClient,
+  NodeClientHttpError,
   NodeClientNotImplementedError,
   type NodeClient,
 } from "@pufferpanel/services/node-client";
@@ -72,6 +73,14 @@ export function createServerRoutes(
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
           }
+          // Branch on literal status codes (rather than `status(err.status, ...)`
+          // with the widened `number` from NodeClientHttpError) so Elysia/Eden
+          // can still build a precise discriminated response type; anything
+          // outside the daemon's known error codes falls through to a 500.
+          if (err instanceof NodeClientHttpError) {
+            if (err.status === 404) return status(404, { error: err.message });
+            if (err.status === 409) return status(409, { error: err.message });
+          }
           throw err;
         }
       },
@@ -86,6 +95,14 @@ export function createServerRoutes(
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
           }
+          // Branch on literal status codes (rather than `status(err.status, ...)`
+          // with the widened `number` from NodeClientHttpError) so Elysia/Eden
+          // can still build a precise discriminated response type; anything
+          // outside the daemon's known error codes falls through to a 500.
+          if (err instanceof NodeClientHttpError) {
+            if (err.status === 404) return status(404, { error: err.message });
+            if (err.status === 409) return status(409, { error: err.message });
+          }
           throw err;
         }
       },
@@ -99,6 +116,14 @@ export function createServerRoutes(
         } catch (err) {
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
+          }
+          // Branch on literal status codes (rather than `status(err.status, ...)`
+          // with the widened `number` from NodeClientHttpError) so Elysia/Eden
+          // can still build a precise discriminated response type; anything
+          // outside the daemon's known error codes falls through to a 500.
+          if (err instanceof NodeClientHttpError) {
+            if (err.status === 404) return status(404, { error: err.message });
+            if (err.status === 409) return status(409, { error: err.message });
           }
           throw err;
         }

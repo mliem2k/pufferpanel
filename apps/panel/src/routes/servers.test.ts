@@ -40,7 +40,7 @@ describe("/servers routes", () => {
     expect(list.data).toHaveLength(1);
   });
 
-  test("start returns 501 until Phase 2 implements the daemon", async () => {
+  test("start returns 404 for a server with no on-disk definition", async () => {
     const db = createTestDb();
     const admin = await createUser(db, {
       username: "admin",
@@ -62,6 +62,6 @@ describe("/servers routes", () => {
     );
 
     const { error } = await api.servers({ identifier: "mliem" }).start.post(null, { headers: { cookie } });
-    expect(error?.status).toBe(501);
+    expect(error?.status).toBe(404);
   });
 });
