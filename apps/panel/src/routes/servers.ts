@@ -7,10 +7,17 @@ import {
   updateServer,
   deleteServer,
 } from "@pufferpanel/services/server";
-import { createNodeClient, NodeClientNotImplementedError } from "@pufferpanel/services/node-client";
+import {
+  createNodeClient,
+  NodeClientNotImplementedError,
+  type NodeClient,
+} from "@pufferpanel/services/node-client";
 import type { AuthPlugin } from "../auth-plugin";
 
-export function createServerRoutes(authPlugin: AuthPlugin) {
+export function createServerRoutes(
+  authPlugin: AuthPlugin,
+  createClient: (node: { id: number }) => NodeClient = createNodeClient,
+) {
   return new Elysia({ prefix: "/servers" })
     .use(authPlugin)
     .get("/", ({ db }) => listServers(db), { scope: SCOPES.SERVER_VIEW })
@@ -60,7 +67,7 @@ export function createServerRoutes(authPlugin: AuthPlugin) {
       "/:identifier/start",
       async ({ params }) => {
         try {
-          return await createNodeClient({ id: 0 }).start(params.identifier);
+          return await createClient({ id: 0 }).start(params.identifier);
         } catch (err) {
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
@@ -74,7 +81,7 @@ export function createServerRoutes(authPlugin: AuthPlugin) {
       "/:identifier/stop",
       async ({ params }) => {
         try {
-          return await createNodeClient({ id: 0 }).stop(params.identifier);
+          return await createClient({ id: 0 }).stop(params.identifier);
         } catch (err) {
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
@@ -88,7 +95,7 @@ export function createServerRoutes(authPlugin: AuthPlugin) {
       "/:identifier/status",
       async ({ params }) => {
         try {
-          return await createNodeClient({ id: 0 }).status(params.identifier);
+          return await createClient({ id: 0 }).status(params.identifier);
         } catch (err) {
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
