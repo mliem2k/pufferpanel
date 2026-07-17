@@ -6,6 +6,20 @@ import { Type, type Static } from "@sinclair/typebox";
 // their own node_modules resolution path to the typebox package.
 export { Value } from "@sinclair/typebox/value";
 
+const InstallStep = Type.Union([
+  Type.Object({
+    type: Type.Literal("download"),
+    url: Type.String(),
+    targetPath: Type.String(),
+  }),
+  Type.Object({
+    type: Type.Literal("command"),
+    command: Type.String(),
+  }),
+]);
+
+export type InstallStepType = Static<typeof InstallStep>;
+
 export const ServerDefinition = Type.Object({
   type: Type.String(),
   display: Type.String(),
@@ -27,6 +41,8 @@ export const ServerDefinition = Type.Object({
     autoStart: Type.Optional(Type.Boolean()),
     autoRestartFromCrash: Type.Optional(Type.Boolean()),
   }),
+  installation: Type.Optional(Type.Array(InstallStep)),
+  uninstallation: Type.Optional(Type.Array(InstallStep)),
 });
 
 export type ServerDefinitionType = Static<typeof ServerDefinition>;
