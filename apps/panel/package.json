@@ -1,0 +1,20 @@
+{
+  "name": "@pufferpanel/panel",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/main.ts"
+  },
+  "dependencies": {
+    "@pufferpanel/core": "workspace:*",
+    "@pufferpanel/models": "workspace:*",
+    "@pufferpanel/scopes": "workspace:*",
+    "@pufferpanel/services": "workspace:*",
+    "elysia": "^1.2.0"
+  },
+  "devDependencies": {
+    "@elysiajs/eden": "^1.2.0",
+    "typescript": "^5.7.0"
+  }
+}
