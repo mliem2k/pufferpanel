@@ -1,0 +1,14 @@
+{
+  "name": "pufferpanel-v3js",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

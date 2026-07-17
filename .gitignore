@@ -30,3 +30,9 @@ favicon.ico
 out/
 web/tests/
 web/swagger/docs.go
+
+node_modules/
+*.sqlite
+*.sqlite-journal
+packages/*/dist
+apps/*/dist
