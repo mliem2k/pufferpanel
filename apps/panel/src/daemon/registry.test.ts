@@ -54,4 +54,32 @@ describe("ServerRegistry", () => {
     expect(first).not.toBeNull();
     expect(first).toBe(second);
   });
+
+  test("loadDefinition returns null for malformed JSON instead of throwing", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+    const dir = join(dataDir, "servers", "broken");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "definition.json"), "{ this is not valid json");
+    const registry = new ServerRegistry(dataDir);
+    expect(await registry.loadDefinition("broken")).toBeNull();
+  });
+
+  test("concurrent getOrCreateEnvironment calls for the same identifier share one Environment instance", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+    await seedDefinition(dataDir, "mliem", {
+      type: "minecraft-purpur",
+      display: "Purpur",
+      environment: { type: "tty" },
+      supportedEnvironments: [{ type: "tty" }],
+      variables: {},
+      execution: { command: "echo hi" },
+    });
+    const registry = new ServerRegistry(dataDir);
+    const [first, second] = await Promise.all([
+      registry.getOrCreateEnvironment("mliem"),
+      registry.getOrCreateEnvironment("mliem"),
+    ]);
+    expect(first).not.toBeNull();
+    expect(first).toBe(second);
+  });
 });
