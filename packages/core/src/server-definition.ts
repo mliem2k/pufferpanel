@@ -6,7 +6,7 @@ import { Type, type Static } from "@sinclair/typebox";
 // their own node_modules resolution path to the typebox package.
 export { Value } from "@sinclair/typebox/value";
 
-const InstallStep = Type.Union([
+export const InstallStep = Type.Union([
   Type.Object({
     type: Type.Literal("download"),
     url: Type.String(),
