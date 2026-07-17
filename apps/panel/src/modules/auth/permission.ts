@@ -1,7 +1,7 @@
-import type { PanelDb } from "@pufferpanel/models/db";
-import { permissions } from "@pufferpanel/models/schema";
+import type { PanelDb } from "../../db/client";
+import { permissions } from "../../db/schema";
 import { eq, and, isNull } from "drizzle-orm";
-import { containsScope, type Scope } from "@pufferpanel/scopes";
+import { containsScope, type Scope } from "../../scopes";
 
 export interface Actor {
   userId?: number;

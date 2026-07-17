@@ -1,8 +1,8 @@
 import { Elysia, status } from "elysia";
 import { SignJWT, jwtVerify } from "jose";
-import type { PanelDb } from "@pufferpanel/models/db";
-import { hasScope, type Actor } from "@pufferpanel/services/permission";
-import type { Scope } from "@pufferpanel/scopes";
+import type { PanelDb } from "../../db/client";
+import { hasScope, type Actor } from "./permission";
+import type { Scope } from "../../scopes";
 
 // Elysia's `.use()` merges decorate/state/macro/model, but does NOT propagate
 // per-instance `config.cookie` (secrets/sign) to the consuming instance

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { users, nodes, servers } from "@pufferpanel/models/schema";
-import { SCOPES } from "@pufferpanel/scopes";
+import { createTestDb } from "../../db/test-helper";
+import { users, nodes, servers } from "../../db/schema";
+import { SCOPES } from "../../scopes";
 import { grantScopes, hasScope } from "./permission";
 
 async function seedUser(db: ReturnType<typeof createTestDb>) {

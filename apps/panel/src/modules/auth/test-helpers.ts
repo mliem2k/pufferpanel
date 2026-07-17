@@ -1,7 +1,7 @@
 import { treaty } from "@elysiajs/eden";
 import { Elysia, status, t } from "elysia";
-import { verifyPassword } from "@pufferpanel/services/user";
-import { signSession, type AuthPlugin } from "./auth-plugin";
+import { verifyPassword } from "../users/service";
+import { signSession, type AuthPlugin } from "./plugin";
 
 export function createLoginOnlyApp(authPlugin: AuthPlugin) {
   return new Elysia()

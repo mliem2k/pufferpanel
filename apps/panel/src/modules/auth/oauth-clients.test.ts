@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { users } from "@pufferpanel/models/schema";
-import { createClient, verifyClientCredentials, listClients, deleteClient } from "./client";
+import { createTestDb } from "../../db/test-helper";
+import { users } from "../../db/schema";
+import { createClient, verifyClientCredentials, listClients, deleteClient } from "./oauth-clients";
 
 async function seedUser(db: ReturnType<typeof createTestDb>) {
   const now = new Date();

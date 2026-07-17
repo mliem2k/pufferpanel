@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateNodeKeyPair, signPanelToken, verifyPanelToken } from "./token";
+import { generateNodeKeyPair, signPanelToken, verifyPanelToken } from "./node-token";
 
 describe("token service", () => {
   test("a token signed with the private key verifies against the matching public key", async () => {
