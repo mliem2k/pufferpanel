@@ -39,7 +39,7 @@ export function createServerRoutes(authPlugin: AuthPlugin) {
       "/:identifier",
       ({ db, params, body }) => updateServer(db, params.identifier, body),
       {
-        scope: SCOPES.SERVER_VIEW,
+        scope: SCOPES.SERVER_EDIT,
         body: t.Object({
           name: t.Optional(t.String()),
           ip: t.Optional(t.String()),

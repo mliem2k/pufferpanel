@@ -3,9 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "bun run --watch src/main.ts"
-  },
   "dependencies": {
     "@pufferpanel/core": "workspace:*",
     "@pufferpanel/models": "workspace:*",

@@ -26,9 +26,13 @@ describe("/users routes", () => {
       { headers: { cookie } },
     );
     expect(created.error).toBeNull();
+    expect(created.data).not.toHaveProperty("hashedPassword");
+    expect(created.data).not.toHaveProperty("otpSecret");
 
     const list = await api.users.get({ headers: { cookie } });
     expect(list.data).toHaveLength(2);
+    expect(list.data?.[0]).not.toHaveProperty("hashedPassword");
+    expect(list.data?.[0]).not.toHaveProperty("otpSecret");
   });
 
   test("a user without users.view is forbidden", async () => {

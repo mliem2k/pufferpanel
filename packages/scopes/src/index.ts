@@ -12,6 +12,7 @@ export const SCOPES = {
   SERVER_ADMIN: scope("server.admin", true),
   SERVER_CREATE: scope("server.create", false),
   SERVER_VIEW: scope("server.view", true),
+  SERVER_EDIT: scope("server.edit", true),
   SERVER_START: scope("server.start", true),
   SERVER_STOP: scope("server.stop", true),
   SERVER_KILL: scope("server.kill", true),

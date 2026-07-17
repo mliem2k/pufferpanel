@@ -2,11 +2,27 @@ import type { PanelDb } from "@pufferpanel/models/db";
 import { users } from "@pufferpanel/models/schema";
 import { eq } from "drizzle-orm";
 
+// Pre-computed dummy hash for timing side-channel protection
+const DUMMY_HASH_FOR_TIMING_SAFETY = await Bun.password.hash("dummy-password-for-timing-safety", {
+  algorithm: "bcrypt",
+  cost: 10,
+});
+
 export interface CreateUserInput {
   username: string;
   email: string;
   password: string;
 }
+
+const publicColumns = {
+  id: users.id,
+  username: users.username,
+  email: users.email,
+  otpActive: users.otpActive,
+  allowPasswordlessLogin: users.allowPasswordlessLogin,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt,
+};
 
 export async function createUser(db: PanelDb, input: CreateUserInput) {
   const hashedPassword = await Bun.password.hash(input.password, {
@@ -23,24 +39,16 @@ export async function createUser(db: PanelDb, input: CreateUserInput) {
       createdAt: now,
       updatedAt: now,
     })
-    .returning();
+    .returning(publicColumns);
   return row;
 }
 
 export async function listUsers(db: PanelDb) {
-  return db
-    .select({
-      id: users.id,
-      username: users.username,
-      email: users.email,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt,
-    })
-    .from(users);
+  return db.select(publicColumns).from(users);
 }
 
 export async function getUserById(db: PanelDb, id: number) {
-  const [row] = await db.select().from(users).where(eq(users.id, id));
+  const [row] = await db.select(publicColumns).from(users).where(eq(users.id, id));
   return row;
 }
 
@@ -54,7 +62,7 @@ export async function updateUser(db: PanelDb, id: number, patch: { email?: strin
     .update(users)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(users.id, id))
-    .returning();
+    .returning(publicColumns);
   return row;
 }
 
@@ -64,7 +72,8 @@ export async function deleteUser(db: PanelDb, id: number) {
 
 export async function verifyPassword(db: PanelDb, username: string, password: string) {
   const user = await getUserByUsername(db, username);
-  if (!user) return null;
-  const valid = await Bun.password.verify(password, user.hashedPassword);
-  return valid ? user : null;
+  const hashToCheck = user?.hashedPassword ?? DUMMY_HASH_FOR_TIMING_SAFETY;
+  const valid = await Bun.password.verify(password, hashToCheck);
+  if (!user || !valid) return null;
+  return user;
 }
