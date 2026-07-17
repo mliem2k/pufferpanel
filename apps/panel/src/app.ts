@@ -1,13 +1,13 @@
-import type { PanelDb } from "@pufferpanel/models/db";
-import { createAuthPlugin } from "./auth-plugin";
-import { createLoginOnlyApp } from "./test-helpers";
-import { createUserRoutes } from "./routes/users";
-import { createNodeRoutes } from "./routes/nodes";
-import { createTemplateRoutes } from "./routes/templates";
-import { createServerRoutes } from "./routes/servers";
-import { ServerRegistry } from "./daemon/registry";
-import { createNodeApp } from "./daemon/app";
-import { createLocalNodeClient } from "./daemon/node-client-local";
+import type { PanelDb } from "./db/client";
+import { createAuthPlugin } from "./modules/auth/plugin";
+import { createLoginOnlyApp } from "./modules/auth/test-helpers";
+import { createUserRoutes } from "./modules/users";
+import { createNodeRoutes } from "./modules/nodes";
+import { createTemplateRoutes } from "./modules/templates";
+import { createServerRoutes } from "./modules/servers";
+import { ServerRegistry } from "./modules/servers/daemon/registry";
+import { createNodeApp } from "./modules/servers/daemon/node-app";
+import { createLocalNodeClient } from "./modules/servers/daemon/local-node-client";
 
 export function createPanelApp(db: PanelDb, cookieSecret: string, dataDir = "./data") {
   const authPlugin = createAuthPlugin(db, cookieSecret);

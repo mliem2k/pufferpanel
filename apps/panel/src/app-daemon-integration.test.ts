@@ -3,11 +3,11 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { treaty } from "@elysiajs/eden";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createUser } from "@pufferpanel/services/user";
-import { createNode } from "@pufferpanel/services/node";
-import { grantScopes } from "@pufferpanel/services/permission";
-import { SCOPES } from "@pufferpanel/scopes";
+import { createTestDb } from "./db/test-helper";
+import { createUser } from "./modules/users/service";
+import { createNode } from "./modules/nodes/service";
+import { grantScopes } from "./modules/auth/permission";
+import { SCOPES } from "./scopes";
 import { createPanelApp } from "./app";
 
 async function loginAs(api: ReturnType<typeof treaty>, username: string, password: string) {

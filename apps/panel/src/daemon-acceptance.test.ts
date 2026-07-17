@@ -3,12 +3,12 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { treaty } from "@elysiajs/eden";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createUser } from "@pufferpanel/services/user";
-import { createNode } from "@pufferpanel/services/node";
-import { grantScopes } from "@pufferpanel/services/permission";
-import { SCOPES } from "@pufferpanel/scopes";
-import { runInstall } from "@pufferpanel/services/template-execution";
+import { createTestDb } from "./db/test-helper";
+import { createUser } from "./modules/users/service";
+import { createNode } from "./modules/nodes/service";
+import { grantScopes } from "./modules/auth/permission";
+import { SCOPES } from "./scopes";
+import { runInstall } from "./modules/templates/execution";
 import { createPanelApp } from "./app";
 
 describe("Phase 2 Slice 1 acceptance", () => {

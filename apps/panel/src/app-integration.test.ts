@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { treaty } from "@elysiajs/eden";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createUser } from "@pufferpanel/services/user";
-import { grantScopes } from "@pufferpanel/services/permission";
-import { SCOPES } from "@pufferpanel/scopes";
+import { createTestDb } from "./db/test-helper";
+import { createUser } from "./modules/users/service";
+import { grantScopes } from "./modules/auth/permission";
+import { SCOPES } from "./scopes";
 import { createPanelApp } from "./app";
 
 describe("composed app after Wave D integration", () => {

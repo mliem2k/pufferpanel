@@ -13,69 +13,15 @@
       "name": "@pufferpanel/panel",
       "version": "0.0.1",
       "dependencies": {
-        "@pufferpanel/core": "workspace:*",
-        "@pufferpanel/environments": "workspace:*",
-        "@pufferpanel/models": "workspace:*",
-        "@pufferpanel/scopes": "workspace:*",
-        "@pufferpanel/services": "workspace:*",
+        "@sinclair/typebox": "^0.34.0",
+        "drizzle-orm": "^0.36.0",
         "elysia": "^1.2.0",
         "jose": "^5.9.0",
-      },
-      "devDependencies": {
-        "@elysiajs/eden": "^1.2.0",
-        "typescript": "^5.7.0",
-      },
-    },
-    "packages/core": {
-      "name": "@pufferpanel/core",
-      "version": "0.0.1",
-      "dependencies": {
-        "@sinclair/typebox": "^0.34.0",
-      },
-      "devDependencies": {
-        "typescript": "^5.7.0",
-      },
-    },
-    "packages/environments": {
-      "name": "@pufferpanel/environments",
-      "version": "0.0.1",
-      "dependencies": {
-        "@pufferpanel/core": "workspace:*",
         "pidusage": "^3.0.2",
       },
       "devDependencies": {
-        "typescript": "^5.7.0",
-      },
-    },
-    "packages/models": {
-      "name": "@pufferpanel/models",
-      "version": "0.0.1",
-      "dependencies": {
-        "drizzle-orm": "^0.36.0",
-      },
-      "devDependencies": {
+        "@elysiajs/eden": "^1.2.0",
         "drizzle-kit": "^0.28.0",
-        "typescript": "^5.7.0",
-      },
-    },
-    "packages/scopes": {
-      "name": "@pufferpanel/scopes",
-      "version": "0.0.1",
-      "devDependencies": {
-        "typescript": "^5.7.0",
-      },
-    },
-    "packages/services": {
-      "name": "@pufferpanel/services",
-      "version": "0.0.1",
-      "dependencies": {
-        "@pufferpanel/core": "workspace:*",
-        "@pufferpanel/models": "workspace:*",
-        "@pufferpanel/scopes": "workspace:*",
-        "drizzle-orm": "^0.36.0",
-        "jose": "^5.9.0",
-      },
-      "devDependencies": {
         "typescript": "^5.7.0",
       },
     },
@@ -137,17 +83,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.19.12", "", { "os": "win32", "cpu": "x64" }, "sha512-T1QyPSDCyMXaO3pzBkF96E8xMkiRYbUEZADd29SyPGabqxMViNoii+NcK7eWJAEoU6RZyEm5lVSIjTmcdoB9HA=="],
 
-    "@pufferpanel/core": ["@pufferpanel/core@workspace:packages/core"],
-
-    "@pufferpanel/environments": ["@pufferpanel/environments@workspace:packages/environments"],
-
-    "@pufferpanel/models": ["@pufferpanel/models@workspace:packages/models"],
-
     "@pufferpanel/panel": ["@pufferpanel/panel@workspace:apps/panel"],
-
-    "@pufferpanel/scopes": ["@pufferpanel/scopes@workspace:packages/scopes"],
-
-    "@pufferpanel/services": ["@pufferpanel/services@workspace:packages/services"],
 
     "@sinclair/typebox": ["@sinclair/typebox@0.34.52", "", {}, "sha512-XiMQh7qqVlxZzcVD+kkGMNGMzcTrDMLWI7S4x7z1MkCkbDPrekpZXEUK0eZqZFMuHQg2a2DZOcDIh9o5v3Gonw=="],
 

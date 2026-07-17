@@ -4,16 +4,15 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@pufferpanel/core": "workspace:*",
-    "@pufferpanel/environments": "workspace:*",
-    "@pufferpanel/models": "workspace:*",
-    "@pufferpanel/scopes": "workspace:*",
-    "@pufferpanel/services": "workspace:*",
+    "@sinclair/typebox": "^0.34.0",
+    "drizzle-orm": "^0.36.0",
     "elysia": "^1.2.0",
-    "jose": "^5.9.0"
+    "jose": "^5.9.0",
+    "pidusage": "^3.0.2"
   },
   "devDependencies": {
     "@elysiajs/eden": "^1.2.0",
+    "drizzle-kit": "^0.28.0",
     "typescript": "^5.7.0"
   }
 }

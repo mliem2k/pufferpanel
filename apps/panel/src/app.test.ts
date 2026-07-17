@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { Elysia } from "elysia";
-import type { PanelDb } from "@pufferpanel/models/db";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createUser } from "@pufferpanel/services/user";
-import { grantScopes } from "@pufferpanel/services/permission";
-import { SCOPES } from "@pufferpanel/scopes";
+import type { PanelDb } from "./db/client";
+import { createTestDb } from "./db/test-helper";
+import { createUser } from "./modules/users/service";
+import { grantScopes } from "./modules/auth/permission";
+import { SCOPES } from "./scopes";
 import { createPanelApp } from "./app";
-import { createAuthPlugin } from "./auth-plugin";
+import { createAuthPlugin } from "./modules/auth/plugin";
 
 describe("POST /auth/login", () => {
   test("returns the username and sets a session cookie on correct credentials", async () => {
