@@ -11,7 +11,8 @@
     "@pufferpanel/models": "workspace:*",
     "@pufferpanel/scopes": "workspace:*",
     "@pufferpanel/services": "workspace:*",
-    "elysia": "^1.2.0"
+    "elysia": "^1.2.0",
+    "jose": "^5.9.0"
   },
   "devDependencies": {
     "@elysiajs/eden": "^1.2.0",

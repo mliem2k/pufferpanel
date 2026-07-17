@@ -1,25 +1,23 @@
 import { treaty } from "@elysiajs/eden";
 import { Elysia, status, t } from "elysia";
 import { verifyPassword } from "@pufferpanel/services/user";
-import type { AuthPlugin } from "./auth-plugin";
+import { signSession, type AuthPlugin } from "./auth-plugin";
 
 export function createLoginOnlyApp(authPlugin: AuthPlugin) {
   return new Elysia()
     .use(authPlugin)
     .post(
       "/auth/login",
-      async ({ db, body, cookie }) => {
+      async ({ db, sessionKey, body, cookie }) => {
         const user = await verifyPassword(db, body.username, body.password);
         if (!user) return status(401, { error: "invalid credentials" });
-        cookie.puffer_auth.value = { userId: user.id };
+        cookie.puffer_auth.value = await signSession(sessionKey, user.id);
         cookie.puffer_auth.httpOnly = true;
         return { username: user.username };
       },
       {
         body: t.Object({ username: t.String(), password: t.String() }),
-        cookie: t.Cookie({
-          puffer_auth: t.Optional(t.Object({ userId: t.Number() })),
-        }),
+        cookie: t.Cookie({ puffer_auth: t.Optional(t.String()) }),
       },
     );
 }
