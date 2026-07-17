@@ -101,6 +101,9 @@ export function createServerRoutes(
           // outside the daemon's known error codes falls through to a 500.
           if (err instanceof NodeClientHttpError) {
             if (err.status === 404) return status(404, { error: err.message });
+            // Defensive/forward-looking: the daemon's /stop route never throws
+            // EnvironmentBusyError today, but keep this mapped in case a future
+            // daemon change makes stop busy-aware too.
             if (err.status === 409) return status(409, { error: err.message });
           }
           throw err;
@@ -123,6 +126,9 @@ export function createServerRoutes(
           // outside the daemon's known error codes falls through to a 500.
           if (err instanceof NodeClientHttpError) {
             if (err.status === 404) return status(404, { error: err.message });
+            // Defensive/forward-looking: the daemon's /status route never
+            // throws EnvironmentBusyError today, but keep this mapped in case
+            // a future daemon change makes status busy-aware too.
             if (err.status === 409) return status(409, { error: err.message });
           }
           throw err;
