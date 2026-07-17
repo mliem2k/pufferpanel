@@ -13,6 +13,12 @@ export interface StopOptions {
   gracefulTimeoutMs?: number;
 }
 
+// Thrown by both busy paths in start()/doStart() below. Callers (e.g. the
+// daemon HTTP routes) should check `instanceof EnvironmentBusyError` rather
+// than matching on `.message`, since the message text differs between the
+// "already running" and "already starting" cases and is free to change.
+export class EnvironmentBusyError extends Error {}
+
 export class Environment extends EventEmitter {
   private consoleBuffer: string[] = [];
   private status: ServerStatus = { running: false, installing: false };
@@ -56,7 +62,7 @@ export class Environment extends EventEmitter {
     // will see `startInFlight` already set and reject immediately, instead of
     // both callers observing "not running" and both spawning a process.
     if (this.startInFlight) {
-      throw new Error("server is already starting");
+      throw new EnvironmentBusyError("server is already starting");
     }
     this.startInFlight = this.doStart(data);
     try {
@@ -68,7 +74,7 @@ export class Environment extends EventEmitter {
 
   private async doStart(data: ExecutionData): Promise<void> {
     if (await this.isRunning()) {
-      throw new Error("server is already running");
+      throw new EnvironmentBusyError("server is already running");
     }
     await this.impl.executeAsync(data);
     this.setStatus({ running: true });

@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { Elysia, status, t } from "elysia";
-import type { Environment } from "@pufferpanel/core/environment";
+import { EnvironmentBusyError, type Environment } from "@pufferpanel/core/environment";
 import type { ServerRegistry } from "./registry";
 
 const ALREADY_RUNNING_MESSAGE = "server is already running";
@@ -38,8 +38,8 @@ export function createNodeApp(registry: ServerRegistry) {
           cwd,
         });
       } catch (error) {
-        if (error instanceof Error && error.message === ALREADY_RUNNING_MESSAGE) {
-          return status(409, { error: ALREADY_RUNNING_MESSAGE });
+        if (error instanceof EnvironmentBusyError) {
+          return status(409, { error: error.message });
         }
         throw error;
       }
