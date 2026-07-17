@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 import type { PanelDb } from "@pufferpanel/models/db";
 import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
 import { createUser } from "@pufferpanel/services/user";
+import { grantScopes } from "@pufferpanel/services/permission";
 import { SCOPES } from "@pufferpanel/scopes";
 import { createPanelApp } from "./app";
 import { createAuthPlugin } from "./auth-plugin";
@@ -86,5 +87,57 @@ describe("scope-protected routes", () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  test("accepts a genuine signed session cookie and returns the authenticated user", async () => {
+    const db = createTestDb();
+    const testUsername = "mliem";
+    const testPassword = "correct horse";
+
+    // Create a user
+    const user = await createUser(db, {
+      username: testUsername,
+      email: "michael.liem2k@gmail.com",
+      password: testPassword,
+    });
+
+    const userId = user?.id ?? 1; // Fallback to 1 if createUser doesn't return an object with id
+
+    // Grant the user SCOPES.ADMIN
+    await grantScopes(db, { userId }, [SCOPES.ADMIN.value]);
+
+    // Login via the real login endpoint to get a genuine session cookie
+    const loginApp = createPanelApp(db, "test-cookie-secret");
+    const loginApi = treaty(loginApp);
+
+    const { response: loginResponse } = await loginApi.auth.login.post({
+      username: testUsername,
+      password: testPassword,
+    });
+
+    const setCookieHeader = loginResponse.headers.get("set-cookie");
+    if (!setCookieHeader) {
+      throw new Error("Login did not return a session cookie");
+    }
+
+    // Extract the puffer_auth cookie value
+    const cookieMatch = setCookieHeader.match(/puffer_auth=([^;]+)/);
+    const cookieValue = cookieMatch?.[1];
+    if (!cookieValue) {
+      throw new Error("Could not extract puffer_auth value from Set-Cookie header");
+    }
+
+    // Now hit the protected endpoint with the genuine session cookie
+    const protectedApp = createProtectedTestApp(db, "test-cookie-secret");
+    const protectedResponse = await protectedApp.handle(
+      new Request("http://localhost/protected", {
+        headers: { cookie: `puffer_auth=${cookieValue}` },
+      }),
+    );
+
+    expect(protectedResponse.status).toBe(200);
+    const body = (await protectedResponse.json()) as { userId: number };
+    expect(body.userId).toBe(userId);
+    expect(typeof body.userId).toBe("number");
   });
 });

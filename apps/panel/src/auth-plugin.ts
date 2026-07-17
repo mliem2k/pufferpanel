@@ -26,8 +26,11 @@ export function createAuthPlugin(db: PanelDb, cookieSecret: string) {
           if (!token) return status(401, { error: "unauthenticated" });
           let userId: number;
           try {
-            const { payload } = await jwtVerify(token, sessionKey);
-            userId = payload.userId as number;
+            const { payload } = await jwtVerify(token, sessionKey, { algorithms: ["HS256"] });
+            if (typeof payload.userId !== "number") {
+              return status(401, { error: "unauthenticated" });
+            }
+            userId = payload.userId;
           } catch {
             return status(401, { error: "unauthenticated" });
           }
