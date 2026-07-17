@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@pufferpanel/core": "workspace:*",
+    "@pufferpanel/environments": "workspace:*",
     "@pufferpanel/models": "workspace:*",
     "@pufferpanel/scopes": "workspace:*",
     "@pufferpanel/services": "workspace:*",
