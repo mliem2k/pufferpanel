@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "declaration": true,
     "resolveJsonModule": true,
-    "types": ["bun-types"]
+    "types": ["bun"]
   }
 }
