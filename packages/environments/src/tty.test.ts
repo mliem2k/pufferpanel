@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { TtyEnvironmentImpl } from "./tty";
 
-function waitFor(check: () => boolean, timeoutMs = 2000): Promise<void> {
+function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   return new Promise((resolve, reject) => {
     const start = Date.now();
-    const interval = setInterval(() => {
-      if (check()) {
+    const interval = setInterval(async () => {
+      if (await check()) {
         clearInterval(interval);
         resolve();
       } else if (Date.now() - start > timeoutMs) {
@@ -67,5 +67,19 @@ describe("TtyEnvironmentImpl", () => {
     expect(typeof stats.memory).toBe("number");
     expect(stats.memory).toBeGreaterThan(0);
     await impl.kill();
+  });
+
+  test("isRunning and getStats handle a process that exits on its own without throwing", async () => {
+    const impl = new TtyEnvironmentImpl();
+    await impl.executeAsync({ command: "true", cwd: "." });
+    // Deliberately check immediately, with no polling delay: "true" typically finishes
+    // and gets reaped before this line runs, landing right in the TOCTOU window between
+    // the process actually exiting and any fire-and-forget bookkeeping catching up.
+    // getStats() must never throw here, even though the process may already be gone.
+    const stats = await impl.getStats();
+    expect(stats).toEqual({ cpu: 0, memory: 0 });
+    // Once the process has genuinely settled, isRunning() must reflect that too.
+    await waitFor(async () => !(await impl.isRunning()));
+    expect(await impl.isRunning()).toBe(false);
   });
 });

@@ -59,15 +59,22 @@ export class TtyEnvironmentImpl implements EnvironmentImpl {
 
   async sendCommand(command: string): Promise<void> {
     if (!this.proc) return;
-    const sink = this.proc.stdin as unknown as { write(data: string): void; flush(): void };
-    sink.write(`${command}\n`);
-    sink.flush();
+    const sink = this.proc.stdin as unknown as {
+      write(data: string): number | Promise<number>;
+      flush(): number | Promise<number>;
+    };
+    await sink.write(`${command}\n`);
+    await sink.flush();
   }
 
   async getStats(): Promise<ServerStats> {
-    if (!this.proc || !this.running) return { cpu: 0, memory: 0 };
-    const stats = await pidusage(this.proc.pid);
-    return { cpu: stats.cpu, memory: stats.memory };
+    if (!this.proc || !(await this.isRunning())) return { cpu: 0, memory: 0 };
+    try {
+      const stats = await pidusage(this.proc.pid);
+      return { cpu: stats.cpu, memory: stats.memory };
+    } catch {
+      return { cpu: 0, memory: 0 };
+    }
   }
 
   getUid(): number {
@@ -79,6 +86,7 @@ export class TtyEnvironmentImpl implements EnvironmentImpl {
   }
 
   async isRunning(): Promise<boolean> {
-    return this.running;
+    if (!this.proc) return false;
+    return this.proc.exitCode === null && this.proc.signalCode === null;
   }
 }
