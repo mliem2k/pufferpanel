@@ -2,6 +2,10 @@ import { EventEmitter } from "node:events";
 import type { EnvironmentImpl, ExecutionData, ServerStats } from "./environment-impl";
 
 const CONSOLE_BUFFER_SIZE = 500;
+// Not configurable for this slice - just real and bounded (see Phase 2
+// Slice 1 final review finding #2: the `stats` WebSocket stream had no
+// producer since nothing ever called pollStats()).
+const STATS_POLL_INTERVAL_MS = 2000;
 
 export interface ServerStatus {
   running: boolean;
@@ -23,11 +27,38 @@ export class Environment extends EventEmitter {
   private consoleBuffer: string[] = [];
   private status: ServerStatus = { running: false, installing: false };
   private startInFlight: Promise<void> | null = null;
+  private statsInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(private readonly impl: EnvironmentImpl) {
     super();
     this.impl.onConsoleLine((line) => this.pushConsoleLine(line));
-    this.impl.onExit(() => this.setStatus({ running: false }));
+    this.impl.onExit(() => {
+      this.setStatus({ running: false });
+      // Covers a process that exits on its own (crash, in-game stop command,
+      // etc.) without ever going through stop()/kill() below.
+      this.stopStatsPolling();
+    });
+  }
+
+  private startStatsPolling(): void {
+    this.stopStatsPolling();
+    const interval = setInterval(() => {
+      this.pollStats().catch((error) => {
+        console.error("Environment stats poll failed:", error);
+      });
+    }, STATS_POLL_INTERVAL_MS);
+    // Never let this be the reason the process stays alive - the process
+    // already has real reasons to run (the HTTP/WS server, the child
+    // process itself); a stats timer shouldn't add to that.
+    interval.unref();
+    this.statsInterval = interval;
+  }
+
+  private stopStatsPolling(): void {
+    if (this.statsInterval) {
+      clearInterval(this.statsInterval);
+      this.statsInterval = null;
+    }
   }
 
   private pushConsoleLine(line: string): void {
@@ -78,21 +109,27 @@ export class Environment extends EventEmitter {
     }
     await this.impl.executeAsync(data);
     this.setStatus({ running: true });
+    this.startStatsPolling();
   }
 
   async stop(options: StopOptions = {}): Promise<void> {
-    const timeoutMs = options.gracefulTimeoutMs ?? 5000;
-    if (options.stopCommand) {
-      await this.impl.sendCommand(options.stopCommand);
+    try {
+      const timeoutMs = options.gracefulTimeoutMs ?? 5000;
+      if (options.stopCommand) {
+        await this.impl.sendCommand(options.stopCommand);
+        if (await this.waitUntilStopped(timeoutMs)) return;
+      }
+      await this.impl.sendCode("SIGTERM");
       if (await this.waitUntilStopped(timeoutMs)) return;
+      await this.impl.kill();
+    } finally {
+      this.stopStatsPolling();
     }
-    await this.impl.sendCode("SIGTERM");
-    if (await this.waitUntilStopped(timeoutMs)) return;
-    await this.impl.kill();
   }
 
   async kill(): Promise<void> {
     await this.impl.kill();
+    this.stopStatsPolling();
   }
 
   async sendCommand(command: string): Promise<void> {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { treaty } from "@elysiajs/eden";
@@ -93,6 +93,7 @@ describe("daemon integration through the composed app", () => {
 
     const stopped = await api.servers({ identifier: "mliem" }).stop.post(null, auth);
     expect(stopped.error).toBeNull();
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("starting an already-running server returns 409, not 500", async () => {
@@ -125,6 +126,7 @@ describe("daemon integration through the composed app", () => {
       if (pgrepCount(marker) > 0) {
         Bun.spawnSync(["pkill", "-f", marker]);
       }
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 });

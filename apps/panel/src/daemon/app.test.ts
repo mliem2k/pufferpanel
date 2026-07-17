@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { treaty } from "@elysiajs/eden";
@@ -67,6 +67,7 @@ describe("Node app", () => {
     const api = treaty(createNodeApp(registry));
     const { error } = await api.servers({ identifier: "missing" }).status.get();
     expect(error?.status).toBe(404);
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("start, status, and stop work end to end against a real process", async () => {
@@ -88,6 +89,7 @@ describe("Node app", () => {
 
     const stopped = await api.servers({ identifier: "mliem" }).stop.post();
     expect(stopped.error).toBeNull();
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("closing a websocket connection removes its listeners from the Environment", async () => {
@@ -138,6 +140,56 @@ describe("Node app", () => {
       expect(environment!.listenerCount("console")).toBe(0);
     } finally {
       await app.stop();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  test("closing a websocket during the registry lookup does not leak Environment listeners", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-nodeapp-wsopenrace-"));
+    await seedRunnableServer(dataDir, "wsopenrace", "sleep 5");
+    const registry = new ServerRegistry(dataDir);
+    // Resolve the real Environment up front so it already exists in
+    // registry's cache before we start artificially delaying lookups below.
+    const environment = await registry.getOrCreateEnvironment("wsopenrace");
+    expect(environment).not.toBeNull();
+
+    // Widen the `open` handler's lookup-to-registration window: without this,
+    // getOrCreateEnvironment resolves near-instantly (it's already cached)
+    // and the client's close would essentially never land before listener
+    // registration. This mirrors the delay technique already used elsewhere
+    // in this phase to expose await-boundary races (see
+    // packages/core/src/environment.test.ts's "concurrent start() calls" test
+    // and this file's "concurrent second start" test below).
+    const originalGet = registry.getOrCreateEnvironment.bind(registry);
+    registry.getOrCreateEnvironment = async (identifier: string) => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return originalGet(identifier);
+    };
+
+    const app = createNodeApp(registry);
+    app.listen(0);
+    const port = (app.server as { port: number }).port;
+
+    try {
+      const ws = await openSocket(port, "wsopenrace", "console=true&stats=true&status=true");
+      // Close as soon as the client-side handshake completes - well within
+      // the 200ms artificial lookup delay above - so the server's `close`
+      // handler runs (and no-ops, since `open` hasn't registered anything
+      // yet) before `open`'s await resolves.
+      await closeSocket(ws);
+
+      // Give the delayed `open` handler time to resume. Before the fix, it
+      // would now register listeners that `close` will never run again to
+      // remove - a permanent leak. After the fix, `open` detects the socket
+      // already closed (via readyState) and registers nothing.
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect(environment!.listenerCount("console")).toBe(0);
+      expect(environment!.listenerCount("stat")).toBe(0);
+      expect(environment!.listenerCount("status")).toBe(0);
+    } finally {
+      await app.stop();
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 
@@ -176,6 +228,7 @@ describe("Node app", () => {
       if (pgrepCount(marker) > 0) {
         Bun.spawnSync(["pkill", "-f", marker]);
       }
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 
@@ -230,6 +283,7 @@ describe("Node app", () => {
       if (pgrepCount(marker) > 0) {
         Bun.spawnSync(["pkill", "-f", marker]);
       }
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 
@@ -255,6 +309,7 @@ describe("Node app", () => {
       }
     } finally {
       environment!.start = originalStart;
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 });

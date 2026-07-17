@@ -69,6 +69,16 @@ export function createNodeApp(registry: ServerRegistry) {
           ws.close();
           return;
         }
+        // The registry lookup above awaits across a tick in which the client
+        // can disconnect. If that happens, Elysia/Bun already invoked `close`
+        // for this socket - it found no entry in `connections` (we hadn't set
+        // one yet) and did nothing, and `close` will never fire again for
+        // this connection. Registering listeners now would leak them
+        // permanently, since nothing would ever remove them. `ws.readyState`
+        // reflects the real underlying connection state (see
+        // ElysiaWS#readyState -> raw.readyState), so bail out here instead of
+        // subscribing to anything.
+        if (ws.readyState !== WebSocket.OPEN) return;
         const listeners: ConnectionListener[] = [];
         if (ws.data.query.console) {
           const handler = (data: string) => ws.send({ type: "console", data });

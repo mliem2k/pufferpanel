@@ -1,6 +1,46 @@
 import pidusage from "pidusage";
 import type { EnvironmentImpl, ExecutionData, ServerStats } from "@pufferpanel/core/environment-impl";
 
+// Splits a shell-style command string into argv tokens.
+//
+// A naive `command.split(" ")` (the previous implementation) mis-tokenizes
+// two common cases: a double-quoted argument containing a space (e.g. a
+// quoted jar path) gets split apart instead of staying one token, and any
+// accidental double space between tokens produces a spurious empty-string
+// argv entry. This tokenizer instead splits on whitespace runs, but treats a
+// `"..."`-quoted span as a single token with the quotes stripped.
+//
+// Intentionally minimal: no escaping of embedded quotes, no single-quote
+// support, no shell metacharacter handling (globs, pipes, env expansion,
+// etc.) - this only needs to cover plain `command arg "quoted arg" ...`
+// strings like `java -jar "my server.jar" --nogui`.
+export function tokenizeCommand(command: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let hasToken = false;
+
+  for (const char of command) {
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      hasToken = true;
+      continue;
+    }
+    if (!inQuotes && /\s/.test(char)) {
+      if (hasToken) {
+        tokens.push(current);
+        current = "";
+        hasToken = false;
+      }
+      continue;
+    }
+    current += char;
+    hasToken = true;
+  }
+  if (hasToken) tokens.push(current);
+  return tokens;
+}
+
 export class TtyEnvironmentImpl implements EnvironmentImpl {
   private proc: ReturnType<typeof Bun.spawn> | null = null;
   private running = false;
@@ -16,7 +56,7 @@ export class TtyEnvironmentImpl implements EnvironmentImpl {
   }
 
   async executeAsync(data: ExecutionData): Promise<void> {
-    const [cmd, ...args] = data.command.split(" ");
+    const [cmd, ...args] = tokenizeCommand(data.command);
     this.proc = Bun.spawn([cmd!, ...args], {
       cwd: data.cwd,
       env: { ...process.env, ...(data.env ?? {}) },

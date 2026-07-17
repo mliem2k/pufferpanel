@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { treaty } from "@elysiajs/eden";
@@ -65,5 +65,6 @@ describe("Phase 2 Slice 1 acceptance", () => {
 
     const stopped = await api.servers({ identifier: "mliem" }).stop.post(null, auth);
     expect(stopped.error).toBeNull();
+    await rm(dataDir, { recursive: true, force: true });
   });
 });

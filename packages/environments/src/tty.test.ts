@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { TtyEnvironmentImpl } from "./tty";
+import { TtyEnvironmentImpl, tokenizeCommand } from "./tty";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -81,5 +81,46 @@ describe("TtyEnvironmentImpl", () => {
     // Once the process has genuinely settled, isRunning() must reflect that too.
     await waitFor(async () => !(await impl.isRunning()));
     expect(await impl.isRunning()).toBe(false);
+  });
+});
+
+describe("tokenizeCommand", () => {
+  test("a normal single-spaced command tokenizes exactly like split(\" \") did (no regression)", () => {
+    expect(tokenizeCommand("java -jar purpur.jar --nogui")).toEqual(["java", "-jar", "purpur.jar", "--nogui"]);
+    expect(tokenizeCommand("sleep 5")).toEqual(["sleep", "5"]);
+    expect(tokenizeCommand("echo hi")).toEqual(["echo", "hi"]);
+  });
+
+  test("a quoted argument containing a space tokenizes to one argv entry, quotes stripped", () => {
+    expect(tokenizeCommand('java -jar "my server.jar" --nogui')).toEqual([
+      "java",
+      "-jar",
+      "my server.jar",
+      "--nogui",
+    ]);
+  });
+
+  test("accidental double spaces don't produce an empty-string token", () => {
+    expect(tokenizeCommand("java  -jar  purpur.jar")).toEqual(["java", "-jar", "purpur.jar"]);
+    // Leading/trailing whitespace shouldn't produce empty tokens either.
+    expect(tokenizeCommand("  java -jar purpur.jar  ")).toEqual(["java", "-jar", "purpur.jar"]);
+  });
+});
+
+describe("TtyEnvironmentImpl.executeAsync argument tokenization against a real spawned process", () => {
+  test("a quoted argument survives as one real argv entry, not split apart", async () => {
+    const impl = new TtyEnvironmentImpl();
+    const lines: string[] = [];
+    impl.onConsoleLine((line) => lines.push(line));
+    // /usr/bin/printf is a real standalone binary (unlike the shell builtin),
+    // so this genuinely exercises Bun.spawn's argv, not a shell re-parsing
+    // the string. Format "%s\n" recycles for each extra argument: if the
+    // quoted argument were wrongly split into two tokens (the pre-fix
+    // behavior), this would print 3 lines with stray quote characters
+    // instead of 2 clean lines.
+    await impl.executeAsync({ command: '/usr/bin/printf %s\\n "my server.jar" --nogui', cwd: "." });
+    await waitFor(() => lines.length >= 2);
+    expect(lines.slice(0, 2)).toEqual(["my server.jar", "--nogui"]);
+    await impl.kill();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ServerRegistry } from "./registry";
@@ -15,6 +15,7 @@ describe("ServerRegistry", () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
     const registry = new ServerRegistry(dataDir);
     expect(await registry.loadDefinition("missing")).toBeNull();
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("loadDefinition reads and validates a real definition file", async () => {
@@ -30,12 +31,14 @@ describe("ServerRegistry", () => {
     const registry = new ServerRegistry(dataDir);
     const definition = await registry.loadDefinition("mliem");
     expect(definition?.type).toBe("minecraft-purpur");
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("getOrCreateEnvironment returns null when no definition exists", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
     const registry = new ServerRegistry(dataDir);
     expect(await registry.getOrCreateEnvironment("missing")).toBeNull();
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("getOrCreateEnvironment returns the same Environment instance on repeated calls", async () => {
@@ -53,6 +56,7 @@ describe("ServerRegistry", () => {
     const second = await registry.getOrCreateEnvironment("mliem");
     expect(first).not.toBeNull();
     expect(first).toBe(second);
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("loadDefinition returns null for malformed JSON instead of throwing", async () => {
@@ -62,6 +66,7 @@ describe("ServerRegistry", () => {
     await writeFile(join(dir, "definition.json"), "{ this is not valid json");
     const registry = new ServerRegistry(dataDir);
     expect(await registry.loadDefinition("broken")).toBeNull();
+    await rm(dataDir, { recursive: true, force: true });
   });
 
   test("concurrent getOrCreateEnvironment calls for the same identifier share one Environment instance", async () => {
@@ -81,5 +86,6 @@ describe("ServerRegistry", () => {
     ]);
     expect(first).not.toBeNull();
     expect(first).toBe(second);
+    await rm(dataDir, { recursive: true, force: true });
   });
 });
