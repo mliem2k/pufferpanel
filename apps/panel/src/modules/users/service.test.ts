@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
+import { createTestDb } from "../../db/test-helper";
 import {
   createUser,
   verifyPassword,
@@ -8,7 +8,7 @@ import {
   getUserByUsername,
   updateUser,
   deleteUser,
-} from "./user";
+} from "./service";
 
 describe("user service", () => {
   test("creates a user with a bcrypt-hashed password", async () => {

@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
-import { SCOPES } from "@pufferpanel/scopes";
-import { createNode, listNodes, getNode, updateNode, deleteNode } from "@pufferpanel/services/node";
-import type { AuthPlugin } from "../auth-plugin";
+import { SCOPES } from "../../scopes";
+import { createNode, listNodes, getNode, updateNode, deleteNode } from "./service";
+import type { AuthPlugin } from "../auth/plugin";
 
 export function createNodeRoutes(authPlugin: AuthPlugin) {
   return new Elysia({ prefix: "/nodes" })

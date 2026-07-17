@@ -1,5 +1,5 @@
-import type { PanelDb } from "@pufferpanel/models/db";
-import { users } from "@pufferpanel/models/schema";
+import type { PanelDb } from "../../db/client";
+import { users } from "../../db/schema";
 import { eq } from "drizzle-orm";
 
 // Pre-computed dummy hash for timing side-channel protection

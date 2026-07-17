@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { treaty } from "@elysiajs/eden";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createUser } from "@pufferpanel/services/user";
-import { grantScopes } from "@pufferpanel/services/permission";
-import { SCOPES } from "@pufferpanel/scopes";
-import { createAuthPlugin } from "../auth-plugin";
-import { loginAndGetCookie } from "../test-helpers";
-import { createUserRoutes } from "./users";
+import { createTestDb } from "../../db/test-helper";
+import { createUser } from "./service";
+import { grantScopes } from "../auth/permission";
+import { SCOPES } from "../../scopes";
+import { createAuthPlugin } from "../auth/plugin";
+import { loginAndGetCookie } from "../auth/test-helpers";
+import { createUserRoutes } from "./index";
 
 describe("/users routes", () => {
   test("an admin can list and create users", async () => {

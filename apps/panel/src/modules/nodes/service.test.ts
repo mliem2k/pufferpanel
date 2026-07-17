@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
-import { createNode, listNodes, getNode, deleteNode } from "./node";
+import { createTestDb } from "../../db/test-helper";
+import { createNode, listNodes, getNode, deleteNode } from "./service";
 
 describe("node service", () => {
   test("createNode returns the generated secret once", async () => {

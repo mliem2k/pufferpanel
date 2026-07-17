@@ -1,13 +1,13 @@
 import { Elysia, t } from "elysia";
-import { SCOPES } from "@pufferpanel/scopes";
+import { SCOPES } from "../../scopes";
 import {
   createUser,
   listUsers,
   getUserById,
   updateUser,
   deleteUser,
-} from "@pufferpanel/services/user";
-import type { AuthPlugin } from "../auth-plugin";
+} from "./service";
+import type { AuthPlugin } from "../auth/plugin";
 
 export function createUserRoutes(authPlugin: AuthPlugin) {
   return new Elysia({ prefix: "/users" })
