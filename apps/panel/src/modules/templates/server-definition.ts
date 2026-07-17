@@ -1,9 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-// Re-exported so consumers (e.g. @pufferpanel/services, which does not
-// declare @sinclair/typebox as a direct dependency) can validate against
-// this schema via `@pufferpanel/core/server-definition` without needing
-// their own node_modules resolution path to the typebox package.
+// Re-exported so consumers (e.g. the templates and daemon modules) can
+// validate against this schema via a single import from this file, without
+// each needing their own separate import of @sinclair/typebox/value.
 export { Value } from "@sinclair/typebox/value";
 
 export const InstallStep = Type.Union([

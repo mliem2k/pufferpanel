@@ -1,13 +1,13 @@
 import { join } from "node:path";
 import { readdir, readFile } from "node:fs/promises";
-import type { PanelDb } from "@pufferpanel/models/db";
-import { localTemplates, templateRepos } from "@pufferpanel/models/schema";
+import type { PanelDb } from "../../db/client";
+import { localTemplates, templateRepos } from "../../db/schema";
 import { eq } from "drizzle-orm";
 import {
   ServerDefinition,
   Value,
   type ServerDefinitionType,
-} from "@pufferpanel/core/server-definition";
+} from "./server-definition";
 
 export interface LocalTemplateInput {
   name: string;

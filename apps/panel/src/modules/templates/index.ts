@@ -1,13 +1,13 @@
 import { Elysia, t } from "elysia";
-import { SCOPES } from "@pufferpanel/scopes";
-import { ServerDefinition } from "@pufferpanel/core/server-definition";
+import { SCOPES } from "../../scopes";
+import { ServerDefinition } from "./server-definition";
 import {
   createLocalTemplate,
   listLocalTemplates,
   getLocalTemplate,
   deleteLocalTemplate,
-} from "@pufferpanel/services/templates";
-import type { AuthPlugin } from "../auth-plugin";
+} from "./service";
+import type { AuthPlugin } from "../auth/plugin";
 
 export function createTemplateRoutes(authPlugin: AuthPlugin) {
   return new Elysia({ prefix: "/templates" })

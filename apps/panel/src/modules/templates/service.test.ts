@@ -2,13 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createTestDb } from "@pufferpanel/models/migrate-test-helper";
+import { createTestDb } from "../../db/test-helper";
 import {
   createLocalTemplate,
   listLocalTemplates,
   addTemplateRepo,
   listTemplateRepoTemplates,
-} from "./templates";
+} from "./service";
 
 async function createFixtureGitRepo(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "pfp-template-repo-"));

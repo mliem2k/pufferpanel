@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runInstall, runUninstall } from "./template-execution";
-import type { ServerDefinitionType } from "@pufferpanel/core/server-definition";
+import { runInstall, runUninstall } from "./execution";
+import type { ServerDefinitionType } from "./server-definition";
 
 function baseDefinition(overrides: Partial<ServerDefinitionType>): ServerDefinitionType {
   return {

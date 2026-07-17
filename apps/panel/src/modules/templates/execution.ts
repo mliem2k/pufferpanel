@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { InstallStepType, ServerDefinitionType } from "@pufferpanel/core/server-definition";
+import type { InstallStepType, ServerDefinitionType } from "./server-definition";
 
 function substitute(text: string, variables: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => variables[name] ?? "");
