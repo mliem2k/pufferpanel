@@ -1,19 +1,48 @@
 import { mkdir } from "node:fs/promises";
 import { Elysia, status, t } from "elysia";
+import type { Environment } from "@pufferpanel/core/environment";
 import type { ServerRegistry } from "./registry";
 
+const ALREADY_RUNNING_MESSAGE = "server is already running";
+
+interface ConnectionListener {
+  event: string;
+  handler: (...args: any[]) => void;
+}
+
+interface ConnectionState {
+  environment: Environment;
+  listeners: ConnectionListener[];
+}
+
 export function createNodeApp(registry: ServerRegistry) {
+  // Per-connection listener bookkeeping, keyed by the connection's own Elysia
+  // context object (stable across open/message/close for a given socket, and
+  // distinct per connection). Kept out of `ws.data` itself so we don't need to
+  // widen or cast Elysia's generated context type.
+  const connections = new WeakMap<object, ConnectionState>();
+
   return new Elysia()
     .post("/servers/:identifier/start", async ({ params }) => {
       const environment = await registry.getOrCreateEnvironment(params.identifier);
       if (!environment) return status(404, { error: "server definition not found" });
+      if (await environment.isRunning()) {
+        return status(409, { error: ALREADY_RUNNING_MESSAGE });
+      }
       const definition = await registry.loadDefinition(params.identifier);
       const cwd = registry.getServerDir(params.identifier);
       await mkdir(cwd, { recursive: true });
-      await environment.start({
-        command: definition!.execution.command,
-        cwd,
-      });
+      try {
+        await environment.start({
+          command: definition!.execution.command,
+          cwd,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === ALREADY_RUNNING_MESSAGE) {
+          return status(409, { error: ALREADY_RUNNING_MESSAGE });
+        }
+        throw error;
+      }
       return { accepted: true };
     })
     .post("/servers/:identifier/stop", async ({ params }) => {
@@ -40,15 +69,31 @@ export function createNodeApp(registry: ServerRegistry) {
           ws.close();
           return;
         }
+        const listeners: ConnectionListener[] = [];
         if (ws.data.query.console) {
-          environment.on("console", (data: string) => ws.send({ type: "console", data }));
+          const handler = (data: string) => ws.send({ type: "console", data });
+          environment.on("console", handler);
+          listeners.push({ event: "console", handler });
         }
         if (ws.data.query.stats) {
-          environment.on("stat", (data: unknown) => ws.send({ type: "stat", data }));
+          const handler = (data: unknown) => ws.send({ type: "stat", data });
+          environment.on("stat", handler);
+          listeners.push({ event: "stat", handler });
         }
         if (ws.data.query.status) {
-          environment.on("status", (data: unknown) => ws.send({ type: "status", data }));
+          const handler = (data: unknown) => ws.send({ type: "status", data });
+          environment.on("status", handler);
+          listeners.push({ event: "status", handler });
         }
+        connections.set(ws.data, { environment, listeners });
+      },
+      close(ws) {
+        const state = connections.get(ws.data);
+        if (!state) return;
+        for (const { event, handler } of state.listeners) {
+          state.environment.off(event, handler);
+        }
+        connections.delete(ws.data);
       },
     });
 }

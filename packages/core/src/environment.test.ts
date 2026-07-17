@@ -111,6 +111,25 @@ describe("Environment", () => {
     expect(stats).toEqual([{ cpu: 1.5, memory: 1024 }]);
   });
 
+  test("start throws if the server is already running", async () => {
+    const impl = new FakeEnvironmentImpl();
+    const env = new Environment(impl);
+    await env.start({ command: "echo hi", cwd: "." });
+    await expect(env.start({ command: "echo hi", cwd: "." })).rejects.toThrow("server is already running");
+  });
+
+  test("start rejecting a second call leaves the first process reachable", async () => {
+    const impl = new FakeEnvironmentImpl();
+    const env = new Environment(impl);
+    await env.start({ command: "echo hi", cwd: "." });
+    await expect(env.start({ command: "echo hi", cwd: "." })).rejects.toThrow();
+    // the impl must not have been asked to spawn a second process, and the
+    // Environment must still be able to reach (and stop) the first one
+    expect(await env.isRunning()).toBe(true);
+    await env.stop({ stopCommand: "stop", gracefulTimeoutMs: 200 });
+    expect(await env.isRunning()).toBe(false);
+  });
+
   test("console buffer caps at 500 entries and evicts oldest first", async () => {
     const impl = new FakeEnvironmentImpl();
     const env = new Environment(impl);

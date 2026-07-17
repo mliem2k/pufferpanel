@@ -45,6 +45,9 @@ export class Environment extends EventEmitter {
   }
 
   async start(data: ExecutionData): Promise<void> {
+    if (await this.isRunning()) {
+      throw new Error("server is already running");
+    }
     await this.impl.executeAsync(data);
     this.setStatus({ running: true });
   }
