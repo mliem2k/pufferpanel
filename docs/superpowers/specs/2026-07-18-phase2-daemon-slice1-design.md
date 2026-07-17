@@ -49,20 +49,28 @@ packages/environments/     # NEW package: @pufferpanel/environments
 packages/services/src/
   template-execution.ts    # runInstall/runUninstall: download + command steps only,
                            #   {{variableName}} substitution into commands/URLs
-  node-client-local.ts     # LocalNodeClient: calls the Node app's .handle() directly,
-                           #   in-process, replacing the Task 9 stub for local nodes
 
 apps/panel/src/daemon/
   app.ts                   # createNodeApp(registry): Node-mode Elysia routes
                            #   (start/stop/status) + one shared WS /socket route
   registry.ts              # in-memory Map<identifier, Environment>, populated by
                            #   reading each server's ServerDefinition JSON from disk
+  node-client-local.ts     # createLocalNodeClient(nodeApp): real NodeClient calling
+                           #   nodeApp.handle() directly in-process, no network hop
 ```
 
-`packages/services/src/node-client.ts`'s `createNodeClient()` changes to
-return a real `LocalNodeClient` for local nodes; `NodeClientNotImplementedError`
-remains the behavior for the not-yet-built remote-node path, so the Task 15
-server routes' call sites need no changes.
+**Correction made while grounding this design against the actual Phase 1 code:**
+`packages/services` cannot depend on `apps/panel` (packages hold shared logic apps
+depend on, never the reverse), so the real `NodeClient` implementation — which must
+call the Node app's `.handle()` — lives in `apps/panel/src/daemon/`, not
+`packages/services`. `packages/services/src/node-client.ts` (the `NodeClient`
+interface, `NodeClientNotImplementedError`, and the existing stub `createNodeClient()`)
+stays exactly as Phase 1 left it, completely unchanged. Wiring in the real client is a
+small, additive change to `apps/panel`: `createServerRoutes(authPlugin, createClient =
+createNodeClient)` gains a second, optional, defaulted parameter, so every existing
+Phase 1 call site and test (`createServerRoutes(authPlugin)`) keeps working unchanged,
+and only `apps/panel/src/app.ts`'s real composition passes
+`() => createLocalNodeClient(nodeApp)` to override the default stub.
 
 ## Environment class and tty execution environment
 
@@ -136,13 +144,14 @@ where the jar/world files live and where the spawned process's `cwd` points).
 
 ## Real NodeClient
 
-`LocalNodeClient` (`packages/services/src/node-client-local.ts`) implements
-the existing `NodeClient` interface (`start`, `stop`, `status`) by calling
-`nodeApp.handle(new Request(...))` directly, in-process, against the routes
-above. This matches the exact HTTP semantics a remote node will use once
-that slice lands, so `NodeClient`'s interface, and every existing call site
-in the Task 15 server routes, needs zero changes when remote-node support is
-added later.
+`createLocalNodeClient(nodeApp)` (`apps/panel/src/daemon/node-client-local.ts`)
+implements the existing `NodeClient` interface (`start`, `stop`, `status`) by
+calling `nodeApp.handle(new Request(...))` directly, in-process, against the
+routes above. This matches the exact HTTP semantics a remote node will use
+once that slice lands. `createServerRoutes` gains a second, optional,
+defaulted parameter (`createClient = createNodeClient`) so this can be
+wired in without touching `NodeClient`'s interface or any existing Task 15
+test.
 
 ## Open items for the next slice
 
