@@ -7,6 +7,6 @@ export function createTestDb() {
   const sqlite = new Database(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
   const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: `${import.meta.dir}/../migrations` });
+  migrate(db, { migrationsFolder: `${import.meta.dir}/../../migrations` });
   return db;
 }

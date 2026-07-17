@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createTestDb } from "./migrate-test-helper";
+import { createTestDb } from "./test-helper";
 import { users, nodes, servers } from "./schema";
 
 describe("schema", () => {

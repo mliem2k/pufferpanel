@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { SCOPES, containsScope } from "./index";
+import { SCOPES, containsScope } from "./scopes";
 
 describe("containsScope", () => {
   test("admin scope grants everything", () => {
