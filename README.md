@@ -7,6 +7,20 @@
 [Documentation](https://docs.pufferpanel.com/) |
 [Translations](https://crowdin.com/project/pufferpanel)
 
+## About this branch (`v3-js`)
+
+This branch is an in-progress rewrite of PufferPanel's backend on
+[Bun](https://bun.sh) + [ElysiaJS](https://elysiajs.com), with
+[Eden Treaty](https://elysiajs.com/eden/overview.html) providing end-to-end typed
+RPC between the Panel, daemon/node, and (eventually) the frontend. It is a
+permanent, long-lived branch (not a feature branch merged back into `v3`), mirroring
+the original Go/Vue architecture's feature set rather than its implementation.
+
+Current status: core Panel (auth, users, nodes, servers, templates), a local tty
+and Docker execution environment for the daemon, PID/container-based reattachment
+across a Panel restart, and a real production entrypoint are all built and tested.
+Design docs for each slice live under `docs/superpowers/specs/` in this repo.
+
 ## What is PufferPanel?
 PufferPanel is a web-based Game Server Management System. PufferPanel allows you to manage multiple different game servers all from one central location. You can give other users their own servers or allow them to access to your servers.
 
