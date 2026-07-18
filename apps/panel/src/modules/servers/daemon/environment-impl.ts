@@ -2,6 +2,7 @@ export interface ExecutionData {
   command: string;
   cwd: string;
   env?: Record<string, string>;
+  pidFilePath?: string;
 }
 
 export interface ServerStats {

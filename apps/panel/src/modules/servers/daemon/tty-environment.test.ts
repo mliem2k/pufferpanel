@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { TtyEnvironmentImpl, tokenizeCommand } from "./tty-environment";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -121,6 +124,36 @@ describe("TtyEnvironmentImpl.executeAsync argument tokenization against a real s
     await impl.executeAsync({ command: '/usr/bin/printf %s\\n "my server.jar" --nogui', cwd: "." });
     await waitFor(() => lines.length >= 2);
     expect(lines.slice(0, 2)).toEqual(["my server.jar", "--nogui"]);
+    await impl.kill();
+  });
+});
+
+describe("TtyEnvironmentImpl PID file", () => {
+  test("writes the process pid to pidFilePath on spawn", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-tty-pidfile-"));
+    const pidFilePath = join(dataDir, "server.pid");
+    const impl = new TtyEnvironmentImpl();
+    await impl.executeAsync({ command: "sleep 5", cwd: ".", pidFilePath });
+    const written = await readFile(pidFilePath, "utf-8");
+    expect(Number(written)).toBeGreaterThan(0);
+    await impl.kill();
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  test("removes the pid file on clean exit", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-tty-pidfile-"));
+    const pidFilePath = join(dataDir, "server.pid");
+    const impl = new TtyEnvironmentImpl();
+    await impl.executeAsync({ command: "true", cwd: ".", pidFilePath });
+    await waitFor(async () => !(await Bun.file(pidFilePath).exists()));
+    expect(await Bun.file(pidFilePath).exists()).toBe(false);
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  test("does not attempt to write a pid file when pidFilePath is omitted (no regression)", async () => {
+    const impl = new TtyEnvironmentImpl();
+    await impl.executeAsync({ command: "sleep 5", cwd: "." });
+    expect(await impl.isRunning()).toBe(true);
     await impl.kill();
   });
 });

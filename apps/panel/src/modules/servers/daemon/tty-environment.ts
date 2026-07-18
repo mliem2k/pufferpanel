@@ -1,5 +1,6 @@
 import pidusage from "pidusage";
 import type { EnvironmentImpl, ExecutionData, ServerStats } from "./environment-impl";
+import { rm } from "node:fs/promises";
 
 // Splits a shell-style command string into argv tokens.
 //
@@ -65,10 +66,16 @@ export class TtyEnvironmentImpl implements EnvironmentImpl {
       stderr: "pipe",
     });
     this.running = true;
+    if (data.pidFilePath) {
+      await Bun.write(data.pidFilePath, String(this.proc.pid));
+    }
     void this.pumpLines(this.proc.stdout);
     void this.pumpLines(this.proc.stderr);
-    void this.proc.exited.then(() => {
+    void this.proc.exited.then(async () => {
       this.running = false;
+      if (data.pidFilePath) {
+        await rm(data.pidFilePath, { force: true });
+      }
       this.exitListener?.();
     });
   }
