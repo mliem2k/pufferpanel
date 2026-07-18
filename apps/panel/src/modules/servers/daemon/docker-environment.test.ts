@@ -154,17 +154,17 @@ describe("DockerEnvironmentImpl", () => {
     }
   });
 
-  // Regression guard for the onData stale-connection guard in openAttach():
-  // exercises a real self-healing restart (kill -> executeAsync again on
-  // the SAME instance) and asserts that afterward, console output and
-  // sendCommand genuinely reflect only the NEW container - nothing from
-  // the old run leaks through. This can't force the exact race (an old
-  // socket delivering trailing bytes AFTER the new connection is already
-  // installed - see docker-environment.ts for why that's hard to test
-  // deterministically without an injectable attach()), but it does verify
-  // the guarded code path behaves correctly across a real restart, which
-  // would fail if the guard (or the lineBuffer/listener reset in
-  // openAttach()) were ever removed or broken.
+  // Sanity check for a real self-healing restart (kill -> executeAsync again
+  // on the SAME instance): asserts that afterward, console output and
+  // sendCommand genuinely reflect only the NEW container. NOTE: this does
+  // NOT actually exercise the onData stale-connection guard in openAttach()
+  // - verified empirically (mutation testing: removing that guard, or the
+  // lineBuffer reset, still leaves this test passing 15/15) because a fully
+  // sequential, awaited restart never produces the overlapping-connection
+  // window the guard exists for (an old socket delivering trailing bytes
+  // AFTER the new connection is already installed). Reproducing that
+  // exact race deterministically would need an injectable attach() - out of
+  // scope here. This test only guards the normal (non-racing) restart path.
   test("self-healing restart: console output and sendCommand reflect only the new container, not the old one", async () => {
     const name = uniqueName("pfp-docker-env-restart-guard");
     const impl = new DockerEnvironmentImpl(name);
