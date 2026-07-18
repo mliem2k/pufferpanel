@@ -76,4 +76,11 @@ describe("ReattachedEnvironmentImpl", () => {
     },
     5000,
   );
+
+  test("sendCode does not throw when the pid is already dead", async () => {
+    const proc = Bun.spawn(["true"], { stdout: "ignore", stderr: "ignore" });
+    await proc.exited;
+    const impl = new ReattachedEnvironmentImpl(proc.pid);
+    await expect(impl.sendCode("SIGTERM")).resolves.toBeUndefined();
+  });
 });

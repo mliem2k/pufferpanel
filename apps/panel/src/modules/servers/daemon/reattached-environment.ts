@@ -1,3 +1,4 @@
+// @ts-expect-error
 import pidusage from "pidusage";
 import type { EnvironmentImpl, ExecutionData, ServerStats } from "./environment-impl";
 
@@ -39,7 +40,11 @@ export class ReattachedEnvironmentImpl implements EnvironmentImpl {
   }
 
   async sendCode(signal: string): Promise<void> {
-    process.kill(this.pid, signal);
+    try {
+      process.kill(this.pid, signal);
+    } catch {
+      // already gone
+    }
   }
 
   async sendCommand(_command: string): Promise<void> {
