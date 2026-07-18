@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { dockerFetch, DockerFrameDemuxer, attach } from "./docker-client";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Promise<void> {
@@ -197,6 +200,64 @@ describe("attach", () => {
       if (containerId) {
         await dockerFetch(`/containers/${containerId}?force=true`, { method: "DELETE" }).catch(() => {});
       }
+    }
+  });
+
+  test("rejects when the target container doesn't exist", async () => {
+    await expect(attach("nonexistent-container-id-12345")).rejects.toThrow();
+  });
+
+  test("does not lose payload bytes that arrive in the same chunk as the header terminator", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-docker-attach-fake-"));
+    const fakeSocketPath = join(dataDir, "fake.sock");
+    const originalEnv = process.env.PANEL_DOCKER_SOCKET;
+    process.env.PANEL_DOCKER_SOCKET = fakeSocketPath;
+
+    const server = Bun.listen({
+      unix: fakeSocketPath,
+      socket: {
+        data(socket) {
+          // Respond with the upgrade header AND a payload frame in ONE write,
+          // reproducing the exact byte-timing this test exists to cover.
+          const payload = new TextEncoder().encode("immediate-frame-payload");
+          const header = new Uint8Array(8);
+          const view = new DataView(header.buffer);
+          view.setUint8(0, 1);
+          view.setUint32(4, payload.length, false);
+          const frame = new Uint8Array(8 + payload.length);
+          frame.set(header, 0);
+          frame.set(payload, 8);
+
+          const responseText =
+            "HTTP/1.1 101 UPGRADED\r\nConnection: Upgrade\r\nContent-Type: application/vnd.docker.multiplexed-stream\r\nUpgrade: tcp\r\n\r\n";
+          const responseHeader = new TextEncoder().encode(responseText);
+          const combined = new Uint8Array(responseHeader.length + frame.length);
+          combined.set(responseHeader, 0);
+          combined.set(frame, responseHeader.length);
+          socket.write(combined);
+        },
+        open() {},
+        close() {},
+        error() {},
+      },
+    });
+
+    try {
+      const connection = await attach("any-id-the-fake-server-ignores");
+      const received: Uint8Array[] = [];
+      connection.onData((chunk) => received.push(chunk));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(received.length).toBeGreaterThan(0);
+      const allBytes = received.reduce((acc, c) => acc + c.length, 0);
+      expect(allBytes).toBeGreaterThan(8);
+    } finally {
+      server.stop(true);
+      if (originalEnv === undefined) {
+        delete process.env.PANEL_DOCKER_SOCKET;
+      } else {
+        process.env.PANEL_DOCKER_SOCKET = originalEnv;
+      }
+      await rm(dataDir, { recursive: true, force: true });
     }
   });
 });

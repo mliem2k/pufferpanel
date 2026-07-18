@@ -73,6 +73,20 @@ export function attach(containerId: string): Promise<AttachConnection> {
     let resolved = false;
     let headerBuffer = new Uint8Array(0);
     let sawUpgrade = false;
+    let pendingChunks: Uint8Array[] = [];
+
+    // Bytes that arrive before onData() has registered a listener (e.g.
+    // payload co-delivered in the same TCP chunk as the header terminator)
+    // must be buffered, not dropped - resolve() only schedules the caller's
+    // continuation as a microtask, so onData() hasn't run yet when this is
+    // called synchronously from the data() handler.
+    function deliver(chunk: Uint8Array): void {
+      if (dataListener) {
+        dataListener(chunk);
+      } else {
+        pendingChunks.push(chunk);
+      }
+    }
 
     const path = `/containers/${containerId}/attach?stream=1&stdin=1&stdout=1&stderr=1`;
 
@@ -88,7 +102,20 @@ export function attach(containerId: string): Promise<AttachConnection> {
             const headerEnd = indexOfSequence(headerBuffer, CRLFCRLF);
             if (headerEnd === -1) return;
             sawUpgrade = true;
+
+            const headerText = new TextDecoder().decode(headerBuffer.slice(0, headerEnd));
+            const statusLine = headerText.split("\r\n")[0] ?? "";
             const remainder = headerBuffer.slice(headerEnd + CRLFCRLF.length);
+
+            if (!statusLine.startsWith("HTTP/1.1 101")) {
+              if (!resolved) {
+                resolved = true;
+                reject(new Error(`docker attach failed to upgrade: ${statusLine}`));
+              }
+              socket.end();
+              return;
+            }
+
             if (!resolved) {
               resolved = true;
               resolve({
@@ -97,6 +124,11 @@ export function attach(containerId: string): Promise<AttachConnection> {
                 },
                 onData: (listener) => {
                   dataListener = listener;
+                  if (pendingChunks.length > 0) {
+                    const buffered = pendingChunks;
+                    pendingChunks = [];
+                    for (const buf of buffered) listener(buf);
+                  }
                 },
                 onClose: (listener) => {
                   closeListener = listener;
@@ -107,11 +139,11 @@ export function attach(containerId: string): Promise<AttachConnection> {
               });
             }
             if (remainder.length > 0) {
-              dataListener?.(remainder);
+              deliver(remainder);
             }
             return;
           }
-          dataListener?.(chunk);
+          deliver(chunk);
         },
         open(socket) {
           socket.write(
