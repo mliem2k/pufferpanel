@@ -11,8 +11,13 @@ export function createNodeAuthPlugin(publicKeyJwk: Record<string, unknown>) {
         return { error: "unauthenticated" };
       }
     })
-    // Elysia's plugin encapsulation defaults lifecycle hooks to "local" scope, so without
-    // .as("global") this onBeforeHandle would never run for routes added by a composing app
-    // via .use() — verified empirically against elysia@1.4.29, not a guess.
+    // .as("global") enables this hook to short-circuit routes added via later .use()
+    // calls. Elysia defaults lifecycle hooks to "local" scope — verified empirically
+    // against elysia@1.4.29. IMPORTANT: Composition order still matters. This plugin
+    // must be .use()'d BEFORE the routes it protects are added to the same instance:
+    // - SAFE: new Elysia().use(createNodeAuthPlugin(jwk)).use(createNodeApp(registry))
+    //   (401 on unauthenticated access to createNodeApp routes)
+    // - UNSAFE: createNodeApp(registry).use(createNodeAuthPlugin(jwk))
+    //   (silent auth bypass — hook never applies to pre-existing routes)
     .as("global");
 }
