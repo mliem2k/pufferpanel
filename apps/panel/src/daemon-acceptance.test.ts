@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { treaty } from "@elysiajs/eden";
 import { createTestDb } from "./db/test-helper";
 import { createUser } from "./modules/users/service";
-import { createNode } from "./modules/nodes/service";
+import { ensureLocalNode } from "./modules/nodes/service";
 import { grantScopes } from "./modules/auth/permission";
 import { SCOPES } from "./scopes";
 import { runInstall } from "./modules/templates/execution";
@@ -36,11 +36,11 @@ describe("Phase 2 Slice 1 acceptance", () => {
       password: "admin-pass",
     });
     await grantScopes(db, { userId: admin!.id }, [SCOPES.ADMIN.value]);
-    const node = await createNode(db, {
-      name: "ubuntu-mliem",
-      publicHost: "panel.mliem.com",
-      privateHost: "127.0.0.1",
-    });
+    // nodeId 0 is the reserved "local, co-located node" sentinel - this test
+    // exercises the real local daemon (on-disk definitions, real tty
+    // processes), so it must route there rather than to an arbitrary remote
+    // node.
+    await ensureLocalNode(db);
     const app = createPanelApp(db, "test-cookie-secret", dataDir);
     const api = treaty(app);
     const login = await api.auth.login.post({ username: "admin", password: "admin-pass" });
@@ -48,7 +48,7 @@ describe("Phase 2 Slice 1 acceptance", () => {
     const auth = { headers: { cookie } };
 
     await api.servers.post(
-      { identifier: "mliem", name: "mliem", nodeId: node!.id, ip: "0.0.0.0", port: 25565, type: "minecraft-purpur" },
+      { identifier: "mliem", name: "mliem", nodeId: 0, ip: "0.0.0.0", port: 25565, type: "minecraft-purpur" },
       auth,
     );
 

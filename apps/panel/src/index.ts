@@ -4,7 +4,7 @@ import { createDb } from "./db/client";
 import { runMigrations } from "./db/migrate";
 import { loadConfig, resolveCookieSecret, type PanelConfig } from "./config";
 import { bootstrapAdmin } from "./bootstrap-admin";
-import { backfillNodeKeys } from "./modules/nodes/service";
+import { backfillNodeKeys, ensureLocalNode } from "./modules/nodes/service";
 import { createPanelApp } from "./app";
 
 export async function bootstrap(config: PanelConfig) {
@@ -15,6 +15,7 @@ export async function bootstrap(config: PanelConfig) {
   await backfillNodeKeys(db);
   const cookieSecret = await resolveCookieSecret(config.dataDir, config.cookieSecret);
   await bootstrapAdmin(db, config.initialAdmin);
+  await ensureLocalNode(db);
   return createPanelApp(db, cookieSecret, config.dataDir);
 }
 

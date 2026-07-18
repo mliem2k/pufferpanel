@@ -1,5 +1,6 @@
 import { Elysia, status, t } from "elysia";
 import { SCOPES } from "../../scopes";
+import type { PanelDb } from "../../db/client";
 import {
   createServer,
   listServers,
@@ -7,6 +8,7 @@ import {
   updateServer,
   deleteServer,
 } from "./service";
+import { getNodeCredentials } from "../nodes/service";
 import {
   createNodeClient,
   NodeClientHttpError,
@@ -15,9 +17,30 @@ import {
 } from "./daemon/node-client";
 import type { AuthPlugin } from "../auth/plugin";
 
+export interface ClientTarget {
+  id: number;
+  publicHost?: string;
+  publicPort?: number;
+  nodePrivateKeyPem?: string;
+}
+
+async function resolveClientTarget(db: PanelDb, identifier: string): Promise<ClientTarget | null> {
+  const server = await getServerByIdentifier(db, identifier);
+  if (!server) return null;
+  if (server.nodeId === 0) return { id: 0 };
+  const creds = await getNodeCredentials(db, server.nodeId);
+  if (!creds) return null;
+  return {
+    id: creds.id,
+    publicHost: creds.publicHost,
+    publicPort: creds.publicPort,
+    nodePrivateKeyPem: creds.nodePrivateKeyPem,
+  };
+}
+
 export function createServerRoutes(
   authPlugin: AuthPlugin,
-  createClient: (node: { id: number }) => NodeClient = createNodeClient,
+  createClient: (node: ClientTarget) => NodeClient = createNodeClient,
 ) {
   return new Elysia({ prefix: "/servers" })
     .use(authPlugin)
@@ -66,9 +89,11 @@ export function createServerRoutes(
     )
     .post(
       "/:identifier/start",
-      async ({ params }) => {
+      async ({ db, params }) => {
+        const target = await resolveClientTarget(db, params.identifier);
+        if (!target) return status(404, { error: "server definition not found" });
         try {
-          return await createClient({ id: 0 }).start(params.identifier);
+          return await createClient(target).start(params.identifier);
         } catch (err) {
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
@@ -88,9 +113,11 @@ export function createServerRoutes(
     )
     .post(
       "/:identifier/stop",
-      async ({ params }) => {
+      async ({ db, params }) => {
+        const target = await resolveClientTarget(db, params.identifier);
+        if (!target) return status(404, { error: "server definition not found" });
         try {
-          return await createClient({ id: 0 }).stop(params.identifier);
+          return await createClient(target).stop(params.identifier);
         } catch (err) {
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });
@@ -113,9 +140,11 @@ export function createServerRoutes(
     )
     .get(
       "/:identifier/status",
-      async ({ params }) => {
+      async ({ db, params }) => {
+        const target = await resolveClientTarget(db, params.identifier);
+        if (!target) return status(404, { error: "server definition not found" });
         try {
-          return await createClient({ id: 0 }).status(params.identifier);
+          return await createClient(target).status(params.identifier);
         } catch (err) {
           if (err instanceof NodeClientNotImplementedError) {
             return status(501, { error: err.message });

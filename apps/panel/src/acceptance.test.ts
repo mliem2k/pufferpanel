@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { createTestDb } from "./db/test-helper";
 import { createUser } from "./modules/users/service";
+import { ensureLocalNode } from "./modules/nodes/service";
 import { grantScopes } from "./modules/auth/permission";
 import { SCOPES } from "./scopes";
 import { createPanelApp } from "./app";
@@ -30,11 +31,15 @@ describe("Phase 1 acceptance", () => {
     );
     expect(node.error).toBeNull();
 
+    // nodeId 0 is the reserved "local, co-located node" sentinel - the daemon
+    // hit below is the real local daemon, not the just-created node above
+    // (which is a genuine remote-node record and must not actually be dialed).
+    await ensureLocalNode(db);
     const server = await api.servers.post(
       {
         identifier: "mliem",
         name: "mliem",
-        nodeId: node.data!.id,
+        nodeId: 0,
         ip: "0.0.0.0",
         port: 25565,
         type: "minecraft-purpur",
