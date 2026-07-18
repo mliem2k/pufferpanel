@@ -1,8 +1,18 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { Value, type ServerDefinitionType, ServerDefinition } from "../../templates/server-definition";
 import { Environment } from "./environment";
 import { TtyEnvironmentImpl } from "./tty-environment";
+import { ReattachedEnvironmentImpl } from "./reattached-environment";
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export class ServerRegistry {
   private environments = new Map<string, Environment>();
@@ -12,6 +22,10 @@ export class ServerRegistry {
 
   getServerDir(identifier: string): string {
     return join(this.dataDir, "servers", identifier, "files");
+  }
+
+  getPidFilePath(identifier: string): string {
+    return join(this.dataDir, "servers", identifier, "server.pid");
   }
 
   private getDefinitionPath(identifier: string): string {
@@ -47,6 +61,18 @@ export class ServerRegistry {
   private async createEnvironment(identifier: string): Promise<Environment | null> {
     const definition = await this.loadDefinition(identifier);
     if (!definition) return null;
+    const pidFilePath = this.getPidFilePath(identifier);
+    const rawPid = await readFile(pidFilePath, "utf-8").catch(() => null);
+    const stalePid = rawPid && !Number.isNaN(Number(rawPid)) ? Number(rawPid) : undefined;
+    if (stalePid !== undefined) {
+      if (isPidAlive(stalePid)) {
+        const environment = new Environment(new ReattachedEnvironmentImpl(stalePid));
+        environment.reattachRunning();
+        this.environments.set(identifier, environment);
+        return environment;
+      }
+      await rm(pidFilePath, { force: true });
+    }
     const environment = new Environment(new TtyEnvironmentImpl());
     this.environments.set(identifier, environment);
     return environment;

@@ -88,4 +88,52 @@ describe("ServerRegistry", () => {
     expect(first).toBe(second);
     await rm(dataDir, { recursive: true, force: true });
   });
+
+  test("reattaches to a live external process recorded in the pid file instead of spawning fresh", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+    await seedDefinition(dataDir, "mliem", {
+      type: "minecraft-purpur",
+      display: "Purpur",
+      environment: { type: "tty" },
+      supportedEnvironments: [{ type: "tty" }],
+      variables: {},
+      execution: { command: "echo hi" },
+    });
+    const proc = Bun.spawn(["sleep", "5"], { stdout: "ignore", stderr: "ignore" });
+    const registry = new ServerRegistry(dataDir);
+    await mkdir(join(dataDir, "servers", "mliem"), { recursive: true });
+    await writeFile(registry.getPidFilePath("mliem"), String(proc.pid));
+
+    const environment = await registry.getOrCreateEnvironment("mliem");
+    expect(environment?.getStatus().running).toBe(true);
+    expect(await environment?.isRunning()).toBe(true);
+
+    proc.kill("SIGKILL");
+    await proc.exited;
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  test("falls back to a fresh TtyEnvironmentImpl and removes the stale pid file when the recorded pid is dead", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+    await seedDefinition(dataDir, "mliem", {
+      type: "minecraft-purpur",
+      display: "Purpur",
+      environment: { type: "tty" },
+      supportedEnvironments: [{ type: "tty" }],
+      variables: {},
+      execution: { command: "echo hi" },
+    });
+    const deadProc = Bun.spawn(["true"], { stdout: "ignore", stderr: "ignore" });
+    await deadProc.exited;
+    const registry = new ServerRegistry(dataDir);
+    await mkdir(join(dataDir, "servers", "mliem"), { recursive: true });
+    const pidFilePath = registry.getPidFilePath("mliem");
+    await writeFile(pidFilePath, String(deadProc.pid));
+
+    const environment = await registry.getOrCreateEnvironment("mliem");
+    expect(environment?.getStatus().running).toBe(false);
+    expect(await Bun.file(pidFilePath).exists()).toBe(false);
+
+    await rm(dataDir, { recursive: true, force: true });
+  });
 });
