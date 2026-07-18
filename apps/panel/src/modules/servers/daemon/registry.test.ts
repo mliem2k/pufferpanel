@@ -295,8 +295,24 @@ describe("ServerRegistry Docker dispatch", () => {
   // even if the test never reaches its own cleanup, and unconditionally
   // sweep them all here regardless of how each test above exited.
   const containerNamesToSweep: string[] = [];
+  // Captured once, at describe-body evaluation time, before any test in this
+  // block has run - this is the only value afterAll can trust, since a
+  // timed-out test's own finally-based restore (see the fake-socket-server
+  // test below) is not guaranteed to run.
+  const originalDockerSocketEnv = process.env.PANEL_DOCKER_SOCKET;
 
   afterAll(async () => {
+    // Reset unconditionally BEFORE sweeping, regardless of whether any
+    // individual test's own env-var restore ran - a timed-out test's finally
+    // block is not guaranteed to run, but afterAll is. Without this, a
+    // timed-out fake-socket test would leave PANEL_DOCKER_SOCKET pointed at
+    // an already-stopped fake socket, and every DELETE below would silently
+    // fail against a dead socket path, defeating the sweep entirely.
+    if (originalDockerSocketEnv === undefined) {
+      delete process.env.PANEL_DOCKER_SOCKET;
+    } else {
+      process.env.PANEL_DOCKER_SOCKET = originalDockerSocketEnv;
+    }
     for (const name of containerNamesToSweep) {
       await dockerFetch(`/containers/${name}?force=true`, { method: "DELETE" }).catch(() => {});
     }
@@ -419,6 +435,11 @@ describe("ServerRegistry Docker dispatch", () => {
         expect(environment?.getStatus().running).toBe(false);
       } finally {
         server.stop(true);
+        // Defense-in-depth for the non-timeout case: this restore is no
+        // longer the ONLY thing responsible for resetting the env var. The
+        // describe block's afterAll resets it unconditionally before its
+        // sweep loop, so a timeout on this test (which would skip this
+        // finally) can't leave later cleanup pointed at a dead socket.
         if (originalEnv === undefined) {
           delete process.env.PANEL_DOCKER_SOCKET;
         } else {
