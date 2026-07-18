@@ -233,4 +233,51 @@ describe("ServerRegistry", () => {
 
     await rm(dataDir, { recursive: true, force: true });
   });
+
+  test(
+    "evicts a reattached environment once it dies so the server becomes startable again instead of being stuck forever",
+    async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+      await seedDefinition(dataDir, "mliem", {
+        type: "minecraft-purpur",
+        display: "Purpur",
+        environment: { type: "tty" },
+        supportedEnvironments: [{ type: "tty" }],
+        variables: {},
+        execution: { command: "sleep 5" },
+      });
+      // Spawned directly via Bun.spawn - never through a TtyEnvironmentImpl -
+      // so this genuinely exercises the ReattachedEnvironmentImpl reattach
+      // path, matching a real cross-process Panel restart.
+      const proc = Bun.spawn(["sleep", "5"], { stdout: "ignore", stderr: "ignore" });
+      const registry = new ServerRegistry(dataDir);
+      await mkdir(join(dataDir, "servers", "mliem"), { recursive: true });
+      const pidFilePath = registry.getPidFilePath("mliem");
+      await writeFile(pidFilePath, String(proc.pid));
+
+      const first = await registry.getOrCreateEnvironment("mliem");
+      expect(first?.getStatus().running).toBe(true);
+
+      // Simulate a spontaneous crash: kill the process directly, not through
+      // the Environment/impl, so the only way the registry learns about the
+      // death is via ReattachedEnvironmentImpl's own polling -> onExit wiring.
+      proc.kill("SIGKILL");
+      await proc.exited;
+
+      await waitFor(() => first?.getStatus().running === false, 5000);
+      expect(first?.getStatus().running).toBe(false);
+
+      const second = await registry.getOrCreateEnvironment("mliem");
+      expect(second).not.toBeNull();
+      expect(second).not.toBe(first);
+
+      const workDir = await mkdtemp(join(tmpdir(), "pfp-registry-work-"));
+      await expect(second!.start({ command: "sleep 2", cwd: workDir })).resolves.toBeUndefined();
+
+      await second!.kill();
+      await rm(workDir, { recursive: true, force: true });
+      await rm(dataDir, { recursive: true, force: true });
+    },
+    8000,
+  );
 });

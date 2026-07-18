@@ -69,6 +69,20 @@ export class ServerRegistry {
       if (stalePid !== undefined && isPidAlive(stalePid)) {
         const environment = new Environment(new ReattachedEnvironmentImpl(stalePid, pidFilePath));
         environment.reattachRunning();
+        // A reattached Environment never gets a fresh call into
+        // TtyEnvironmentImpl if it later dies (crash or explicit stop) - it
+        // stays cached here forever and permanently rejects start() with a
+        // non-EnvironmentBusyError. reattachRunning() above already fired one
+        // synchronous "status" event; nothing else calls setStatus on a
+        // reattached Environment except the impl's onExit wiring in
+        // Environment's constructor (stop()/kill() never call setStatus
+        // directly), so this `.once` can only ever fire on the death
+        // transition. Evict on that transition so the next
+        // getOrCreateEnvironment call falls through to a fresh
+        // TtyEnvironmentImpl instead of returning this dead instance.
+        environment.once("status", () => {
+          this.environments.delete(identifier);
+        });
         this.environments.set(identifier, environment);
         return environment;
       }
