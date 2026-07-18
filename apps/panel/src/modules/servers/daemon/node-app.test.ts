@@ -312,4 +312,22 @@ describe("Node app", () => {
       await rm(dataDir, { recursive: true, force: true });
     }
   });
+
+  test("start writes the process pid to the registry's pid file, stop removes it", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-nodeapp-pidfile-"));
+    await seedRunnableServer(dataDir, "mliem", "sleep 5");
+    const registry = new ServerRegistry(dataDir);
+    const api = treaty(createNodeApp(registry));
+    const pidFilePath = registry.getPidFilePath("mliem");
+
+    const started = await api.servers({ identifier: "mliem" }).start.post();
+    expect(started.error).toBeNull();
+    await waitFor(async () => await Bun.file(pidFilePath).exists());
+    const pid = await Bun.file(pidFilePath).text();
+    expect(Number(pid)).toBeGreaterThan(0);
+
+    await api.servers({ identifier: "mliem" }).stop.post();
+    await waitFor(async () => !(await Bun.file(pidFilePath).exists()));
+    await rm(dataDir, { recursive: true, force: true });
+  });
 });

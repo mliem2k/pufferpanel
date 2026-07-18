@@ -36,6 +36,7 @@ export function createNodeApp(registry: ServerRegistry) {
         await environment.start({
           command: definition!.execution.command,
           cwd,
+          pidFilePath: registry.getPidFilePath(params.identifier),
         });
       } catch (error) {
         if (error instanceof EnvironmentBusyError) {
