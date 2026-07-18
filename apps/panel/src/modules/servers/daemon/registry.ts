@@ -67,7 +67,7 @@ export class ServerRegistry {
       const parsedPid = Number(rawPid);
       const stalePid = Number.isInteger(parsedPid) && parsedPid > 0 ? parsedPid : undefined;
       if (stalePid !== undefined && isPidAlive(stalePid)) {
-        const environment = new Environment(new ReattachedEnvironmentImpl(stalePid));
+        const environment = new Environment(new ReattachedEnvironmentImpl(stalePid, pidFilePath));
         environment.reattachRunning();
         this.environments.set(identifier, environment);
         return environment;

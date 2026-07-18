@@ -4,6 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ServerRegistry } from "./registry";
 
+function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const interval = setInterval(async () => {
+      if (await check()) {
+        clearInterval(interval);
+        resolve();
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(interval);
+        reject(new Error("waitFor timed out"));
+      }
+    }, 20);
+  });
+}
+
 async function seedDefinition(dataDir: string, identifier: string, definition: unknown): Promise<void> {
   const dir = join(dataDir, "servers", identifier);
   await mkdir(dir, { recursive: true });
@@ -112,6 +127,44 @@ describe("ServerRegistry", () => {
     await proc.exited;
     await rm(dataDir, { recursive: true, force: true });
   });
+
+  test(
+    "removes the pid file after a reattached environment is stopped, with no TtyEnvironmentImpl listener alive to mask a missing cleanup",
+    async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+      await seedDefinition(dataDir, "mliem", {
+        type: "minecraft-purpur",
+        display: "Purpur",
+        environment: { type: "tty" },
+        supportedEnvironments: [{ type: "tty" }],
+        variables: {},
+        execution: { command: "echo hi" },
+      });
+      // Spawned directly via Bun.spawn - never through a TtyEnvironmentImpl -
+      // so there is no stray `proc.exited.then(...)` listener from a
+      // pre-restart instance around to remove the pid file instead. This is
+      // what makes the test an honest probe of ReattachedEnvironmentImpl's
+      // own responsibility, matching a real cross-process Panel restart
+      // where the original TtyEnvironmentImpl instance is truly gone.
+      const proc = Bun.spawn(["sleep", "5"], { stdout: "ignore", stderr: "ignore" });
+      const registry = new ServerRegistry(dataDir);
+      await mkdir(join(dataDir, "servers", "mliem"), { recursive: true });
+      const pidFilePath = registry.getPidFilePath("mliem");
+      await writeFile(pidFilePath, String(proc.pid));
+
+      const environment = await registry.getOrCreateEnvironment("mliem");
+      expect(environment?.getStatus().running).toBe(true);
+      expect(await Bun.file(pidFilePath).exists()).toBe(true);
+
+      await environment?.stop();
+
+      await waitFor(async () => !(await Bun.file(pidFilePath).exists()), 5000);
+      expect(await Bun.file(pidFilePath).exists()).toBe(false);
+
+      await rm(dataDir, { recursive: true, force: true });
+    },
+    8000,
+  );
 
   test("falls back to a fresh TtyEnvironmentImpl and removes the stale pid file when the recorded pid is dead", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));

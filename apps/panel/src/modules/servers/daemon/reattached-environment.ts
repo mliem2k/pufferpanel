@@ -1,13 +1,17 @@
 // @ts-expect-error
 import pidusage from "pidusage";
 import type { EnvironmentImpl, ExecutionData, ServerStats } from "./environment-impl";
+import { rm } from "node:fs/promises";
 
 const REATTACHED_POLL_INTERVAL_MS = 2000;
 
 export class ReattachedEnvironmentImpl implements EnvironmentImpl {
   private exitListener: (() => void) | null = null;
 
-  constructor(private readonly pid: number) {
+  constructor(
+    private readonly pid: number,
+    private readonly pidFilePath?: string,
+  ) {
     this.startPolling();
   }
 
@@ -15,6 +19,9 @@ export class ReattachedEnvironmentImpl implements EnvironmentImpl {
     const interval = setInterval(async () => {
       if (!(await this.isRunning())) {
         clearInterval(interval);
+        if (this.pidFilePath) {
+          await rm(this.pidFilePath, { force: true });
+        }
         this.exitListener?.();
       }
     }, REATTACHED_POLL_INTERVAL_MS);

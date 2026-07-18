@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { ReattachedEnvironmentImpl } from "./reattached-environment";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 3500): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -73,6 +76,25 @@ describe("ReattachedEnvironmentImpl", () => {
       await proc.exited;
       await waitFor(() => exited, 3500);
       expect(exited).toBe(true);
+    },
+    5000,
+  );
+
+  test(
+    "removes the pid file once the polled process is observed dead",
+    async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "pfp-reattached-pidfile-"));
+      const pidFilePath = join(dataDir, "server.pid");
+      const proc = Bun.spawn(["sleep", "5"], { stdout: "ignore", stderr: "ignore" });
+      await writeFile(pidFilePath, String(proc.pid));
+      const impl = new ReattachedEnvironmentImpl(proc.pid, pidFilePath);
+      expect(await Bun.file(pidFilePath).exists()).toBe(true);
+
+      proc.kill("SIGKILL");
+      await proc.exited;
+      await waitFor(async () => !(await Bun.file(pidFilePath).exists()), 3500);
+      expect(await Bun.file(pidFilePath).exists()).toBe(false);
+      await rm(dataDir, { recursive: true, force: true });
     },
     5000,
   );
