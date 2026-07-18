@@ -8,6 +8,7 @@ export class DockerEnvironmentImpl implements EnvironmentImpl {
   private consoleListener: ((line: string) => void) | null = null;
   private exitListener: (() => void) | null = null;
   private lineBuffer = "";
+  private readonly decoder = new TextDecoder();
 
   constructor(private readonly containerName: string) {}
 
@@ -55,6 +56,7 @@ export class DockerEnvironmentImpl implements EnvironmentImpl {
   private async openAttach(): Promise<void> {
     const connection = await attach(this.containerId!);
     this.connection = connection;
+    this.lineBuffer = "";
     const demuxer = new DockerFrameDemuxer();
     connection.onData((chunk) => {
       for (const f of demuxer.push(chunk)) {
@@ -62,13 +64,23 @@ export class DockerEnvironmentImpl implements EnvironmentImpl {
       }
     });
     connection.onClose(() => {
-      this.connection = null;
-      this.exitListener?.();
+      // Only clear state / fire the exit listener if this connection is
+      // still the one this instance is tracking. On the self-healing
+      // restart path (kill -> executeAsync again on the SAME instance),
+      // the OLD run's attach socket can emit its close event AFTER a NEW
+      // openAttach() call has already installed a newer connection - a
+      // stale close callback must not null out the valid new connection
+      // or fire a spurious exit for a container this instance no longer
+      // represents.
+      if (this.connection === connection) {
+        this.connection = null;
+        this.exitListener?.();
+      }
     });
   }
 
   private pushConsoleBytes(payload: Uint8Array): void {
-    this.lineBuffer += new TextDecoder().decode(payload, { stream: true });
+    this.lineBuffer += this.decoder.decode(payload, { stream: true });
     const lines = this.lineBuffer.split("\n");
     this.lineBuffer = lines.pop() ?? "";
     for (const line of lines) {
@@ -86,12 +98,20 @@ export class DockerEnvironmentImpl implements EnvironmentImpl {
 
   async kill(): Promise<void> {
     if (!this.containerId) return;
-    await dockerFetch(`/containers/${this.containerId}/kill`, { method: "POST" });
+    const res = await dockerFetch(`/containers/${this.containerId}/kill`, { method: "POST" });
+    // 404 = container already gone, 409 = container not running - both are
+    // benign "nothing to do" outcomes, not real failures.
+    if (!res.ok && res.status !== 404 && res.status !== 409) {
+      throw new Error(`docker container kill failed: ${res.status}`);
+    }
   }
 
   async sendCode(signal: string): Promise<void> {
     if (!this.containerId) return;
-    await dockerFetch(`/containers/${this.containerId}/kill?signal=${signal}`, { method: "POST" });
+    const res = await dockerFetch(`/containers/${this.containerId}/kill?signal=${signal}`, { method: "POST" });
+    if (!res.ok && res.status !== 404 && res.status !== 409) {
+      throw new Error(`docker container kill (signal ${signal}) failed: ${res.status}`);
+    }
   }
 
   async sendCommand(command: string): Promise<void> {
