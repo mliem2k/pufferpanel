@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig, resolveCookieSecret } from "./config";
@@ -69,6 +69,14 @@ describe("resolveCookieSecret", () => {
     expect(secret).toBe("override-secret");
     const onDisk = await readFile(join(dataDir, "cookie-secret"), "utf-8").catch(() => null);
     expect(onDisk).toBeNull();
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  test("writes the generated secret file with owner-only (0600) permissions", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-config-"));
+    await resolveCookieSecret(dataDir);
+    const stats = await stat(join(dataDir, "cookie-secret"));
+    expect(stats.mode & 0o777).toBe(0o600);
     await rm(dataDir, { recursive: true, force: true });
   });
 });

@@ -50,6 +50,6 @@ export async function resolveCookieSecret(dataDir: string, override?: string): P
   const existing = await readFile(secretPath, "utf-8").catch(() => null);
   if (existing) return existing;
   const generated = randomBytes(32).toString("hex");
-  await writeFile(secretPath, generated);
+  await writeFile(secretPath, generated, { mode: 0o600 });
   return generated;
 }
