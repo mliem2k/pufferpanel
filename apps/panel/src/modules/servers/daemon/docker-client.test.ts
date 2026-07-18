@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,6 +19,25 @@ function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Pro
   });
 }
 
+// Safety-net sweep: a per-test try/finally is not sufficient defense on its
+// own for a test whose real container lifecycle can approach its declared
+// bun:test timeout under real, non-warm-cache conditions. When a test times
+// out, Bun abandons it - the test's own try/finally does NOT reliably get to
+// run, because the timeout races against (rather than cancels and awaits)
+// the test's promise chain. Track every container name/id these tests might
+// create the moment it's known, so it's tracked even if the test never
+// reaches its own cleanup, and unconditionally sweep them all here
+// regardless of how each test above exited. Module-level (not nested inside
+// any single describe) because this file has multiple describe blocks and
+// containers get created across more than one of them.
+const containerNamesToSweep: string[] = [];
+
+afterAll(async () => {
+  for (const name of containerNamesToSweep) {
+    await dockerFetch(`/containers/${name}?force=true`, { method: "DELETE" }).catch(() => {});
+  }
+});
+
 describe("dockerFetch", () => {
   test("reaches the real Docker daemon over the unix socket", async () => {
     const res = await dockerFetch("/version");
@@ -29,6 +48,7 @@ describe("dockerFetch", () => {
 
   test("creates, starts, inspects, and removes a real container", async () => {
     const name = `pfp-docker-client-test-${Date.now()}`;
+    containerNamesToSweep.push(name);
     try {
       const createRes = await dockerFetch(`/containers/create?name=${name}`, {
         method: "POST",
@@ -127,6 +147,7 @@ describe("DockerFrameDemuxer", () => {
 describe("attach", () => {
   test("writing to a real container's stdin echoes back through stdout", async () => {
     const name = `pfp-docker-client-attach-${Date.now()}`;
+    containerNamesToSweep.push(name);
     let containerId: string | null = null;
     try {
       const createRes = await dockerFetch(`/containers/create?name=${name}`, {
@@ -170,6 +191,7 @@ describe("attach", () => {
 
   test("the attach connection closes when the container is killed", async () => {
     const name = `pfp-docker-client-exit-${Date.now()}`;
+    containerNamesToSweep.push(name);
     let containerId: string | null = null;
     try {
       const createRes = await dockerFetch(`/containers/create?name=${name}`, {
@@ -270,6 +292,7 @@ describe("findContainer", () => {
 
   test("returns the id and running state for a real running container", async () => {
     const name = `pfp-docker-client-find-${Date.now()}`;
+    containerNamesToSweep.push(name);
     let containerId: string;
     try {
       const createRes = await dockerFetch(`/containers/create?name=${name}`, {

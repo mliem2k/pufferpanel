@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,8 +34,27 @@ async function removeContainer(name: string): Promise<void> {
 }
 
 describe("DockerEnvironmentImpl", () => {
+  // Safety-net sweep: a per-test try/finally is not sufficient defense on its
+  // own for a test whose real container lifecycle can approach its declared
+  // bun:test timeout under real, non-warm-cache conditions. When a test times
+  // out, Bun abandons it - the test's own try/finally does NOT reliably get
+  // to run, because the timeout races against (rather than cancels and
+  // awaits) the test's promise chain. Track every container name these tests
+  // might create the moment it's constructed, before any create/start call,
+  // so it's tracked even if the test never reaches its own cleanup, and
+  // unconditionally sweep them all here regardless of how each test above
+  // exited.
+  const containerNamesToSweep: string[] = [];
+
+  afterAll(async () => {
+    for (const name of containerNamesToSweep) {
+      await dockerFetch(`/containers/${name}?force=true`, { method: "DELETE" }).catch(() => {});
+    }
+  });
+
   test("executeAsync creates and starts a real container, isRunning reflects it", async () => {
     const name = uniqueName("pfp-docker-env-basic");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     try {
       await impl.executeAsync({ command: "sleep 30", cwd: "/tmp", image: "alpine:latest" });
@@ -47,6 +66,7 @@ describe("DockerEnvironmentImpl", () => {
 
   test("kill stops the container, isRunning reflects it", async () => {
     const name = uniqueName("pfp-docker-env-kill");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     try {
       await impl.executeAsync({ command: "sleep 30", cwd: "/tmp", image: "alpine:latest" });
@@ -60,6 +80,7 @@ describe("DockerEnvironmentImpl", () => {
 
   test("onExit fires when the container is killed", async () => {
     const name = uniqueName("pfp-docker-env-exit");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     let exited = false;
     impl.onExit(() => {
@@ -77,6 +98,7 @@ describe("DockerEnvironmentImpl", () => {
 
   test("sendCommand writes to the container's stdin, onConsoleLine reads it back", async () => {
     const name = uniqueName("pfp-docker-env-console");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     const lines: string[] = [];
     impl.onConsoleLine((line) => lines.push(line));
@@ -99,6 +121,7 @@ describe("DockerEnvironmentImpl", () => {
 
   test("getStats returns real numbers for a running container", async () => {
     const name = uniqueName("pfp-docker-env-stats");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     try {
       await impl.executeAsync({ command: "sleep 30", cwd: "/tmp", image: "alpine:latest" });
@@ -117,6 +140,7 @@ describe("DockerEnvironmentImpl", () => {
   test("the server-files directory is bind-mounted and writable from inside the container", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pfp-docker-env-mount-"));
     const name = uniqueName("pfp-docker-env-mount");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     try {
       await impl.executeAsync({
@@ -138,6 +162,7 @@ describe("DockerEnvironmentImpl", () => {
 
   test("executeAsync can be called again on the same instance after the container exited (self-healing name reuse)", async () => {
     const name = uniqueName("pfp-docker-env-restart");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     try {
       await impl.executeAsync({ command: "sleep 30", cwd: "/tmp", image: "alpine:latest" });
@@ -167,6 +192,7 @@ describe("DockerEnvironmentImpl", () => {
   // scope here. This test only guards the normal (non-racing) restart path.
   test("self-healing restart: console output and sendCommand reflect only the new container, not the old one", async () => {
     const name = uniqueName("pfp-docker-env-restart-guard");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     const lines: string[] = [];
     impl.onConsoleLine((line) => lines.push(line));
@@ -205,6 +231,7 @@ describe("DockerEnvironmentImpl", () => {
 
   test("isRunning and getStats return safe defaults before any container has been created", async () => {
     const name = uniqueName("pfp-docker-env-unstarted");
+    containerNamesToSweep.push(name);
     const impl = new DockerEnvironmentImpl(name);
     try {
       expect(await impl.isRunning()).toBe(false);
@@ -216,6 +243,7 @@ describe("DockerEnvironmentImpl", () => {
 
   test("reattachToRunning attaches to an existing running container without creating a new one", async () => {
     const name = uniqueName("pfp-docker-env-reattach");
+    containerNamesToSweep.push(name);
     try {
       const starter = new DockerEnvironmentImpl(name);
       await starter.executeAsync({ command: "sleep 30", cwd: "/tmp", image: "alpine:latest" });

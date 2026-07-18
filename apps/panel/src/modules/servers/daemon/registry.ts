@@ -4,7 +4,7 @@ import { Value, type ServerDefinitionType, ServerDefinition } from "../../templa
 import { Environment } from "./environment";
 import { TtyEnvironmentImpl } from "./tty-environment";
 import { ReattachedEnvironmentImpl } from "./reattached-environment";
-import { findContainer } from "./docker-client";
+import { findContainer, type ContainerInfo } from "./docker-client";
 import { DockerEnvironmentImpl } from "./docker-environment";
 
 function isPidAlive(pid: number): boolean {
@@ -121,17 +121,37 @@ export class ServerRegistry {
     // handler and would otherwise hang the socket open forever with no
     // listeners - is to always resolve (Environment or null), never
     // reject. Treat a genuine Docker-connectivity failure here the same as
-    // "no existing container found" and fall through to constructing a
-    // fresh, not-yet-started environment; a truly broken daemon will
-    // surface loudly and safely later, when the caller's own start() call
-    // reaches DockerEnvironmentImpl.executeAsync through the HTTP start
-    // route's existing try/catch.
-    const existing = await findContainer(containerName).catch(() => null);
+    // "no existing container found" for THIS call and fall through to
+    // constructing a fresh, not-yet-started environment; a truly broken
+    // daemon will surface loudly and safely later, when the caller's own
+    // start() call reaches DockerEnvironmentImpl.executeAsync through the
+    // HTTP start route's existing try/catch.
+    //
+    // Crucially, a thrown error is NOT the same as a legitimate "not found"
+    // (findContainer resolving null) when it comes to CACHING: unlike the
+    // tty/reattachment path above, a Docker-backed environment is never
+    // evicted from `this.environments`, so caching a "blind"
+    // (never-reattached) Environment now would serve it forever - silently
+    // reporting a genuinely-running container as stopped until the whole
+    // Panel process restarts. So only cache when the check didn't throw;
+    // when it threw, still return a usable environment for this call, but
+    // let the NEXT getOrCreateEnvironment call for this identifier retry
+    // the reattach check from scratch instead of being stuck with a
+    // permanently-blind cached entry.
+    let existing: ContainerInfo | null = null;
+    let checkFailed = false;
+    try {
+      existing = await findContainer(containerName);
+    } catch {
+      checkFailed = true;
+    }
     if (existing?.running) {
       await impl.reattachToRunning(existing.id);
       environment.reattachRunning();
     }
-    this.environments.set(identifier, environment);
+    if (!checkFailed) {
+      this.environments.set(identifier, environment);
+    }
     return environment;
   }
 }

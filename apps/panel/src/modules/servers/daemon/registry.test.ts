@@ -450,4 +450,90 @@ describe("ServerRegistry Docker dispatch", () => {
     },
     10000,
   );
+
+  test(
+    "a findContainer failure is never cached: the next getOrCreateEnvironment call retries instead of being stuck with a blind environment",
+    async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-docker-nocache-"));
+      const fakeSocketPath = join(dataDir, "fake.sock");
+      const originalEnv = process.env.PANEL_DOCKER_SOCKET;
+      const identifier = `docker-findcontainer-nocache-${Date.now()}`;
+      const registry = new ServerRegistry(dataDir);
+      const containerName = registry.getContainerName(identifier);
+      containerNamesToSweep.push(containerName);
+
+      const server = Bun.listen({
+        unix: fakeSocketPath,
+        socket: {
+          data(socket) {
+            const responseText = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+            socket.write(new TextEncoder().encode(responseText));
+          },
+          open() {},
+          close() {},
+          error() {},
+        },
+      });
+
+      try {
+        await seedDefinition(dataDir, identifier, {
+          type: "test-server",
+          display: "Test Server",
+          environment: { type: "docker", image: "alpine:latest" },
+          supportedEnvironments: [{ type: "docker" }],
+          variables: {},
+          execution: { command: "sleep 30" },
+        });
+
+        // First call: findContainer throws (fake socket always 500s). Per
+        // the fix, this must NOT be cached - only that this call itself
+        // still resolves to a usable (blind) environment.
+        process.env.PANEL_DOCKER_SOCKET = fakeSocketPath;
+        const firstAttempt = await registry.getOrCreateEnvironment(identifier);
+        expect(firstAttempt).not.toBeNull();
+        expect(firstAttempt?.getStatus().running).toBe(false);
+        server.stop(true);
+
+        // Point back at the real daemon and seed a genuinely running
+        // container under the exact name the registry would look up.
+        if (originalEnv === undefined) {
+          delete process.env.PANEL_DOCKER_SOCKET;
+        } else {
+          process.env.PANEL_DOCKER_SOCKET = originalEnv;
+        }
+        const createRes = await dockerFetch(`/containers/create?name=${containerName}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            Image: "alpine:latest",
+            Cmd: ["sh", "-c", "sleep 30"],
+            HostConfig: { NetworkMode: "host" },
+          }),
+        });
+        const { Id: realContainerId } = (await createRes.json()) as { Id: string };
+        await dockerFetch(`/containers/${realContainerId}/start`, { method: "POST" });
+        await waitFor(async () => (await findContainer(containerName))?.running === true);
+
+        // Second call, same identifier: if the first call's failure had
+        // been wrongly cached, this would return the SAME blind instance
+        // (still running: false) without ever re-checking. The fix means
+        // this retries the check from scratch and genuinely reattaches.
+        const secondAttempt = await registry.getOrCreateEnvironment(identifier);
+        expect(secondAttempt).not.toBe(firstAttempt);
+        expect(secondAttempt?.getStatus().running).toBe(true);
+
+        await secondAttempt!.kill();
+      } finally {
+        server.stop(true);
+        if (originalEnv === undefined) {
+          delete process.env.PANEL_DOCKER_SOCKET;
+        } else {
+          process.env.PANEL_DOCKER_SOCKET = originalEnv;
+        }
+        await dockerFetch(`/containers/${containerName}?force=true`, { method: "DELETE" }).catch(() => {});
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    },
+    10000,
+  );
 });
