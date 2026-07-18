@@ -293,4 +293,36 @@ describe("findContainer", () => {
       await dockerFetch(`/containers/${name}?force=true`, { method: "DELETE" }).catch(() => {});
     }
   });
+
+  test("throws on a non-404 error status instead of treating it as not-found", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-docker-find-fake-"));
+    const fakeSocketPath = join(dataDir, "fake.sock");
+    const originalEnv = process.env.PANEL_DOCKER_SOCKET;
+    process.env.PANEL_DOCKER_SOCKET = fakeSocketPath;
+
+    const server = Bun.listen({
+      unix: fakeSocketPath,
+      socket: {
+        data(socket) {
+          const responseText = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+          socket.write(new TextEncoder().encode(responseText));
+        },
+        open() {},
+        close() {},
+        error() {},
+      },
+    });
+
+    try {
+      await expect(findContainer("any-name")).rejects.toThrow("docker container inspect failed: 500");
+    } finally {
+      server.stop(true);
+      if (originalEnv === undefined) {
+        delete process.env.PANEL_DOCKER_SOCKET;
+      } else {
+        process.env.PANEL_DOCKER_SOCKET = originalEnv;
+      }
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
 });

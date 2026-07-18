@@ -57,7 +57,10 @@ export interface AttachConnection {
 
 export async function findContainer(name: string): Promise<ContainerInfo | null> {
   const res = await dockerFetch(`/containers/${name}/json`);
-  if (!res.ok) return null;
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`docker container inspect failed: ${res.status}`);
+  }
   const inspect = (await res.json()) as { Id: string; State?: { Running?: boolean } };
   return { id: inspect.Id, running: inspect.State?.Running === true };
 }

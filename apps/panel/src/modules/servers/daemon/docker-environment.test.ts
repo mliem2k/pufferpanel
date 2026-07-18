@@ -216,28 +216,32 @@ describe("DockerEnvironmentImpl", () => {
 
   test("reattachToRunning attaches to an existing running container without creating a new one", async () => {
     const name = uniqueName("pfp-docker-env-reattach");
-    const starter = new DockerEnvironmentImpl(name);
-    await starter.executeAsync({ command: "sleep 30", cwd: "/tmp", image: "alpine:latest" });
+    try {
+      const starter = new DockerEnvironmentImpl(name);
+      await starter.executeAsync({ command: "sleep 30", cwd: "/tmp", image: "alpine:latest" });
 
-    const found = await findContainer(name);
-    expect(found?.running).toBe(true);
+      const found = await findContainer(name);
+      expect(found?.running).toBe(true);
 
-    const reattached = new DockerEnvironmentImpl(name);
-    await reattached.reattachToRunning(found!.id);
-    expect(await reattached.isRunning()).toBe(true);
+      const reattached = new DockerEnvironmentImpl(name);
+      await reattached.reattachToRunning(found!.id);
+      expect(await reattached.isRunning()).toBe(true);
 
-    const lines: string[] = [];
-    reattached.onConsoleLine((line) => lines.push(line));
-    let exited = false;
-    reattached.onExit(() => {
-      exited = true;
-    });
+      const lines: string[] = [];
+      reattached.onConsoleLine((line) => lines.push(line));
+      let exited = false;
+      reattached.onExit(() => {
+        exited = true;
+      });
 
-    await reattached.kill();
-    await waitFor(() => exited);
-    expect(exited).toBe(true);
+      await reattached.kill();
+      await waitFor(() => exited);
+      expect(exited).toBe(true);
 
-    const stillThere = await findContainer(name);
-    expect(stillThere?.running).toBe(false);
+      const stillThere = await findContainer(name);
+      expect(stillThere?.running).toBe(false);
+    } finally {
+      await removeContainer(name);
+    }
   });
 });
