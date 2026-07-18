@@ -7,6 +7,7 @@ import { EnvironmentBusyError } from "./environment";
 import { TtyEnvironmentImpl } from "./tty-environment";
 import { ServerRegistry } from "./registry";
 import { createNodeApp } from "./node-app";
+import { dockerFetch } from "./docker-client";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 2000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -330,4 +331,37 @@ describe("Node app", () => {
     await waitFor(async () => !(await Bun.file(pidFilePath).exists()));
     await rm(dataDir, { recursive: true, force: true });
   });
+
+  test("start passes the definition's environment.image into ExecutionData for docker-typed servers", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-nodeapp-docker-"));
+    const dir = join(dataDir, "servers", "docker-image-test");
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, "definition.json"),
+      JSON.stringify({
+        type: "test-server",
+        display: "Test Server",
+        environment: { type: "docker", image: "alpine:latest" },
+        supportedEnvironments: [{ type: "docker" }],
+        variables: {},
+        execution: { command: "sleep 30" },
+      }),
+    );
+    const registry = new ServerRegistry(dataDir);
+    const api = treaty(createNodeApp(registry));
+    const containerName = registry.getContainerName("docker-image-test");
+
+    try {
+      const started = await api.servers({ identifier: "docker-image-test" }).start.post();
+      expect(started.error).toBeNull();
+      await waitFor(async () => {
+        const status = await api.servers({ identifier: "docker-image-test" }).status.get();
+        return status.data?.running === true;
+      });
+      await api.servers({ identifier: "docker-image-test" }).stop.post();
+    } finally {
+      await dockerFetch(`/containers/${containerName}?force=true`, { method: "DELETE" }).catch(() => {});
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  }, { timeout: 10000 });
 });

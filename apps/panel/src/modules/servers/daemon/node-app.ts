@@ -37,6 +37,7 @@ export function createNodeApp(registry: ServerRegistry) {
           command: definition!.execution.command,
           cwd,
           pidFilePath: registry.getPidFilePath(params.identifier),
+          image: definition!.environment.image,
         });
       } catch (error) {
         if (error instanceof EnvironmentBusyError) {
