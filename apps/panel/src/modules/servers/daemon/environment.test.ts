@@ -111,6 +111,33 @@ describe("Environment", () => {
     expect(stats).toEqual([{ cpu: 1.5, memory: 1024 }]);
   });
 
+  test("reattachRunning marks status as running, emits status, and starts stats polling without calling executeAsync", async () => {
+    const impl = new FakeEnvironmentImpl();
+    const env = new Environment(impl);
+    const statuses: unknown[] = [];
+    const stats: ServerStats[] = [];
+    env.on("status", (status) => statuses.push(status));
+    env.on("stat", (s: ServerStats) => stats.push(s));
+
+    env.reattachRunning();
+
+    expect(env.getStatus()).toEqual({ running: true, installing: false });
+    expect(statuses).toEqual([{ running: true, installing: false }]);
+    expect(impl.running).toBe(false);
+
+    await new Promise((resolve) => {
+      const interval = setInterval(() => {
+        if (stats.length >= 1) {
+          clearInterval(interval);
+          resolve(undefined);
+        }
+      }, 20);
+    });
+    expect(stats[0]).toEqual({ cpu: 1.5, memory: 1024 });
+
+    await env.kill();
+  });
+
   test("start throws if the server is already running", async () => {
     const impl = new FakeEnvironmentImpl();
     const env = new Environment(impl);

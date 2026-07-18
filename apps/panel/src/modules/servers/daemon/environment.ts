@@ -82,6 +82,11 @@ export class Environment extends EventEmitter {
     return { ...this.status };
   }
 
+  reattachRunning(): void {
+    this.setStatus({ running: true, installing: false });
+    this.startStatsPolling();
+  }
+
   async start(data: ExecutionData): Promise<void> {
     // The startInFlight check-and-claim below must complete with no `await`
     // in between, mirroring ServerRegistry.getOrCreateEnvironment's
