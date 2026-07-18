@@ -63,9 +63,10 @@ export class ServerRegistry {
     if (!definition) return null;
     const pidFilePath = this.getPidFilePath(identifier);
     const rawPid = await readFile(pidFilePath, "utf-8").catch(() => null);
-    const stalePid = rawPid && !Number.isNaN(Number(rawPid)) ? Number(rawPid) : undefined;
-    if (stalePid !== undefined) {
-      if (isPidAlive(stalePid)) {
+    if (rawPid !== null) {
+      const parsedPid = Number(rawPid);
+      const stalePid = Number.isInteger(parsedPid) && parsedPid > 0 ? parsedPid : undefined;
+      if (stalePid !== undefined && isPidAlive(stalePid)) {
         const environment = new Environment(new ReattachedEnvironmentImpl(stalePid));
         environment.reattachRunning();
         this.environments.set(identifier, environment);

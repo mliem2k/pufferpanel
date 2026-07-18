@@ -136,4 +136,48 @@ describe("ServerRegistry", () => {
 
     await rm(dataDir, { recursive: true, force: true });
   });
+
+  test("treats pid 0 as invalid, falls back to fresh spawn, and removes the file", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+    await seedDefinition(dataDir, "mliem", {
+      type: "minecraft-purpur",
+      display: "Purpur",
+      environment: { type: "tty" },
+      supportedEnvironments: [{ type: "tty" }],
+      variables: {},
+      execution: { command: "echo hi" },
+    });
+    const registry = new ServerRegistry(dataDir);
+    await mkdir(join(dataDir, "servers", "mliem"), { recursive: true });
+    const pidFilePath = registry.getPidFilePath("mliem");
+    await writeFile(pidFilePath, "0");
+
+    const environment = await registry.getOrCreateEnvironment("mliem");
+    expect(environment?.getStatus().running).toBe(false);
+    expect(await Bun.file(pidFilePath).exists()).toBe(false);
+
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  test("treats non-numeric pid file content as invalid, falls back to fresh spawn, and removes the file", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-"));
+    await seedDefinition(dataDir, "mliem", {
+      type: "minecraft-purpur",
+      display: "Purpur",
+      environment: { type: "tty" },
+      supportedEnvironments: [{ type: "tty" }],
+      variables: {},
+      execution: { command: "echo hi" },
+    });
+    const registry = new ServerRegistry(dataDir);
+    await mkdir(join(dataDir, "servers", "mliem"), { recursive: true });
+    const pidFilePath = registry.getPidFilePath("mliem");
+    await writeFile(pidFilePath, "not-a-pid");
+
+    const environment = await registry.getOrCreateEnvironment("mliem");
+    expect(environment?.getStatus().running).toBe(false);
+    expect(await Bun.file(pidFilePath).exists()).toBe(false);
+
+    await rm(dataDir, { recursive: true, force: true });
+  });
 });
