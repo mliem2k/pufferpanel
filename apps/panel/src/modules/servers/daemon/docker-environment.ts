@@ -59,6 +59,14 @@ export class DockerEnvironmentImpl implements EnvironmentImpl {
     this.lineBuffer = "";
     const demuxer = new DockerFrameDemuxer();
     connection.onData((chunk) => {
+      // Same stale-connection hazard as onClose below: on a self-healing
+      // restart, the OLD container's socket can deliver trailing/buffered
+      // stdout bytes AFTER a NEW openAttach() has already reset state for
+      // the new container. Without this guard those stale bytes would get
+      // appended into the new container's live line buffer and could be
+      // emitted to the current console listener as if they came from the
+      // new container.
+      if (this.connection !== connection) return;
       for (const f of demuxer.push(chunk)) {
         this.pushConsoleBytes(f.payload);
       }

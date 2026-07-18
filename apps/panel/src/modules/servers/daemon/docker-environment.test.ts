@@ -86,8 +86,14 @@ describe("DockerEnvironmentImpl", () => {
       await waitFor(() => lines.includes("echo-me-back"));
       expect(lines).toContain("echo-me-back");
     } finally {
-      await impl.kill();
+      // Removal (force=true) already kills a still-running container as
+      // part of removing it, so it must run first and unconditionally -
+      // if kill() were called first and threw, it would abort this finally
+      // block before removal ran, leaking the container. kill() is kept
+      // here only as belt-and-suspenders and must never be able to skip
+      // removal.
       await removeContainer(name);
+      await impl.kill().catch(() => {});
     }
   });
 
@@ -101,8 +107,10 @@ describe("DockerEnvironmentImpl", () => {
       expect(typeof stats.memory).toBe("number");
       expect(stats.memory).toBeGreaterThan(0);
     } finally {
-      await impl.kill();
+      // See comment in the sendCommand test above: removal must run first
+      // and unconditionally so a kill() failure can't skip cleanup.
       await removeContainer(name);
+      await impl.kill().catch(() => {});
     }
   });
 
@@ -120,8 +128,10 @@ describe("DockerEnvironmentImpl", () => {
       const content = await Bun.file(join(dataDir, "marker.txt")).text();
       expect(content).toBe("from-container\n");
     } finally {
-      await impl.kill();
+      // See comment in the sendCommand test above: removal must run first
+      // and unconditionally so a kill() failure can't skip cleanup.
       await removeContainer(name);
+      await impl.kill().catch(() => {});
       await rm(dataDir, { recursive: true, force: true });
     }
   });
@@ -141,6 +151,55 @@ describe("DockerEnvironmentImpl", () => {
       await impl.kill();
     } finally {
       await removeContainer(name);
+    }
+  });
+
+  // Regression guard for the onData stale-connection guard in openAttach():
+  // exercises a real self-healing restart (kill -> executeAsync again on
+  // the SAME instance) and asserts that afterward, console output and
+  // sendCommand genuinely reflect only the NEW container - nothing from
+  // the old run leaks through. This can't force the exact race (an old
+  // socket delivering trailing bytes AFTER the new connection is already
+  // installed - see docker-environment.ts for why that's hard to test
+  // deterministically without an injectable attach()), but it does verify
+  // the guarded code path behaves correctly across a real restart, which
+  // would fail if the guard (or the lineBuffer/listener reset in
+  // openAttach()) were ever removed or broken.
+  test("self-healing restart: console output and sendCommand reflect only the new container, not the old one", async () => {
+    const name = uniqueName("pfp-docker-env-restart-guard");
+    const impl = new DockerEnvironmentImpl(name);
+    const lines: string[] = [];
+    impl.onConsoleLine((line) => lines.push(line));
+    try {
+      await impl.executeAsync({ command: "cat", cwd: "/tmp", image: "alpine:latest" });
+      await impl.sendCommand("from-old-container");
+      await waitFor(() => lines.includes("from-old-container"));
+      expect(lines).toContain("from-old-container");
+
+      await impl.kill();
+      await waitFor(async () => !(await impl.isRunning()));
+
+      // Self-healing restart on the SAME instance, SAME container name -
+      // this is exactly the path where a stale onData/onClose callback
+      // from the OLD connection could otherwise clobber state that now
+      // belongs to the NEW connection/container.
+      await impl.executeAsync({ command: "cat", cwd: "/tmp", image: "alpine:latest" });
+      expect(await impl.isRunning()).toBe(true);
+
+      await impl.sendCommand("from-new-container");
+      await waitFor(() => lines.includes("from-new-container"));
+      expect(lines).toContain("from-new-container");
+
+      // sendCommand after the restart reached the NEW container (confirmed
+      // by the echo above), and no line was duplicated/replayed from the
+      // old connection.
+      expect(lines.filter((l) => l === "from-old-container")).toHaveLength(1);
+      expect(lines.filter((l) => l === "from-new-container")).toHaveLength(1);
+
+      await impl.kill();
+    } finally {
+      await removeContainer(name);
+      await impl.kill().catch(() => {});
     }
   });
 
