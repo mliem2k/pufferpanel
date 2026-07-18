@@ -3,6 +3,7 @@ import { createTestDb } from "../../db/test-helper";
 import { users, nodes, servers } from "../../db/schema";
 import { SCOPES } from "../../scopes";
 import { grantScopes, hasScope } from "./permission";
+import { generateNodeKeyPair } from "./node-token";
 
 async function seedUser(db: ReturnType<typeof createTestDb>) {
   const now = new Date();
@@ -21,13 +22,15 @@ async function seedUser(db: ReturnType<typeof createTestDb>) {
 
 async function seedServer(db: ReturnType<typeof createTestDb>, identifier: string) {
   const now = new Date();
+  const { publicKeyJwk, privateKeyPem } = await generateNodeKeyPair();
   const [node] = await db
     .insert(nodes)
     .values({
       name: `node-${identifier}`,
       publicHost: "localhost",
       privateHost: "127.0.0.1",
-      secret: "test-secret",
+      nodePrivateKeyPem: privateKeyPem,
+      nodePublicKeyJwk: JSON.stringify(publicKeyJwk),
       createdAt: now,
       updatedAt: now,
     })

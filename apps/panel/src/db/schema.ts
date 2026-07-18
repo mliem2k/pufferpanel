@@ -22,7 +22,8 @@ export const nodes = sqliteTable("nodes", {
   publicPort: integer("public_port").notNull().default(8080),
   privatePort: integer("private_port").notNull().default(8080),
   sftpPort: integer("sftp_port").notNull().default(5657),
-  secret: text("secret").notNull(),
+  nodePrivateKeyPem: text("node_private_key_pem").notNull(),
+  nodePublicKeyJwk: text("node_public_key_jwk").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });

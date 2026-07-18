@@ -27,7 +27,8 @@ describe("schema", () => {
         name: "ubuntu-mliem",
         publicHost: "panel.mliem.com",
         privateHost: "127.0.0.1",
-        secret: "bootstrap-secret",
+        nodePrivateKeyPem: "test-private-key-pem",
+        nodePublicKeyJwk: "{}",
         createdAt: now,
         updatedAt: now,
       })

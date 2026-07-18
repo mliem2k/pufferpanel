@@ -9,7 +9,7 @@ import { loginAndGetCookie } from "../auth/test-helpers";
 import { createNodeRoutes } from "./index";
 
 describe("/nodes routes", () => {
-  test("an admin can create and list nodes without the secret leaking", async () => {
+  test("an admin can create and list nodes without the private key leaking", async () => {
     const db = createTestDb();
     const admin = await createUser(db, {
       username: "admin",
@@ -29,6 +29,7 @@ describe("/nodes routes", () => {
 
     const list = await api.nodes.get({ headers: { cookie } });
     expect(list.data).toHaveLength(1);
-    expect(list.data?.[0]).not.toHaveProperty("secret");
+    expect(list.data?.[0]).not.toHaveProperty("nodePrivateKeyPem");
+    expect(list.data?.[0]).not.toHaveProperty("nodePublicKeyJwk");
   });
 });
