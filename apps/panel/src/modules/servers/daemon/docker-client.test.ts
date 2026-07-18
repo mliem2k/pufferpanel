@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { dockerFetch, DockerFrameDemuxer, attach } from "./docker-client";
+import { dockerFetch, DockerFrameDemuxer, attach, findContainer } from "./docker-client";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -258,6 +258,39 @@ describe("attach", () => {
         process.env.PANEL_DOCKER_SOCKET = originalEnv;
       }
       await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("findContainer", () => {
+  test("returns null for a name that doesn't exist", async () => {
+    const result = await findContainer(`pfp-docker-client-missing-${Date.now()}`);
+    expect(result).toBeNull();
+  });
+
+  test("returns the id and running state for a real running container", async () => {
+    const name = `pfp-docker-client-find-${Date.now()}`;
+    let containerId: string;
+    try {
+      const createRes = await dockerFetch(`/containers/create?name=${name}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          Image: "alpine:latest",
+          Cmd: ["sh", "-c", "sleep 30"],
+          HostConfig: { NetworkMode: "host" },
+        }),
+      });
+      const created = (await createRes.json()) as { Id: string };
+      containerId = created.Id;
+      await dockerFetch(`/containers/${containerId}/start`, { method: "POST" });
+
+      const result = await findContainer(name);
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(containerId);
+      expect(result?.running).toBe(true);
+    } finally {
+      await dockerFetch(`/containers/${name}?force=true`, { method: "DELETE" }).catch(() => {});
     }
   });
 });

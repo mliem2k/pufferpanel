@@ -53,6 +53,11 @@ export class DockerEnvironmentImpl implements EnvironmentImpl {
     await this.openAttach();
   }
 
+  async reattachToRunning(containerId: string): Promise<void> {
+    this.containerId = containerId;
+    await this.openAttach();
+  }
+
   private async openAttach(): Promise<void> {
     const connection = await attach(this.containerId!);
     this.connection = connection;

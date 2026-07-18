@@ -43,11 +43,23 @@ export class DockerFrameDemuxer {
   }
 }
 
+export interface ContainerInfo {
+  id: string;
+  running: boolean;
+}
+
 export interface AttachConnection {
   write(data: string | Uint8Array): void;
   onData(listener: (chunk: Uint8Array) => void): void;
   onClose(listener: () => void): void;
   close(): void;
+}
+
+export async function findContainer(name: string): Promise<ContainerInfo | null> {
+  const res = await dockerFetch(`/containers/${name}/json`);
+  if (!res.ok) return null;
+  const inspect = (await res.json()) as { Id: string; State?: { Running?: boolean } };
+  return { id: inspect.Id, running: inspect.State?.Running === true };
 }
 
 const CRLFCRLF = [13, 10, 13, 10];
