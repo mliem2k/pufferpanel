@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -284,6 +284,24 @@ describe("ServerRegistry", () => {
 });
 
 describe("ServerRegistry Docker dispatch", () => {
+  // Safety-net sweep: a per-test try/finally is not sufficient defense on
+  // its own for a test whose real container lifecycle (create -> run ->
+  // stop) can approach its declared bun:test timeout under real,
+  // non-warm-cache conditions. When a test times out, Bun abandons it - the
+  // test's own try/finally does NOT reliably get to run, because the
+  // timeout races against (rather than cancels and awaits) the test's
+  // promise chain. Track every container name these tests might create the
+  // moment it's constructed, before any create/start call, so it's tracked
+  // even if the test never reaches its own cleanup, and unconditionally
+  // sweep them all here regardless of how each test above exited.
+  const containerNamesToSweep: string[] = [];
+
+  afterAll(async () => {
+    for (const name of containerNamesToSweep) {
+      await dockerFetch(`/containers/${name}?force=true`, { method: "DELETE" }).catch(() => {});
+    }
+  });
+
   test(
     "getOrCreateEnvironment spawns a real Docker container for a docker-typed definition",
     async () => {
@@ -299,6 +317,7 @@ describe("ServerRegistry Docker dispatch", () => {
       });
       const registry = new ServerRegistry(dataDir);
       const containerName = registry.getContainerName(identifier);
+      containerNamesToSweep.push(containerName);
       try {
         const environment = await registry.getOrCreateEnvironment(identifier);
         expect(environment).not.toBeNull();
@@ -333,6 +352,7 @@ describe("ServerRegistry Docker dispatch", () => {
       });
       const registryBefore = new ServerRegistry(dataDir);
       const containerName = registryBefore.getContainerName(identifier);
+      containerNamesToSweep.push(containerName);
       try {
         const environmentBefore = await registryBefore.getOrCreateEnvironment(identifier);
         await environmentBefore!.start({
@@ -357,6 +377,56 @@ describe("ServerRegistry Docker dispatch", () => {
         await rm(dataDir, { recursive: true, force: true });
       }
     },
-    15000,
+    25000,
+  );
+
+  test(
+    "getOrCreateEnvironment still resolves to a fresh Environment instead of rejecting when findContainer throws a real Docker daemon error",
+    async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-docker-fake-"));
+      const fakeSocketPath = join(dataDir, "fake.sock");
+      const originalEnv = process.env.PANEL_DOCKER_SOCKET;
+      process.env.PANEL_DOCKER_SOCKET = fakeSocketPath;
+
+      const server = Bun.listen({
+        unix: fakeSocketPath,
+        socket: {
+          data(socket) {
+            const responseText = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+            socket.write(new TextEncoder().encode(responseText));
+          },
+          open() {},
+          close() {},
+          error() {},
+        },
+      });
+
+      try {
+        const identifier = `docker-findcontainer-throws-${Date.now()}`;
+        await seedDefinition(dataDir, identifier, {
+          type: "test-server",
+          display: "Test Server",
+          environment: { type: "docker", image: "alpine:latest" },
+          supportedEnvironments: [{ type: "docker" }],
+          variables: {},
+          execution: { command: "sleep 30" },
+        });
+        const registry = new ServerRegistry(dataDir);
+
+        const environment = await registry.getOrCreateEnvironment(identifier);
+
+        expect(environment).not.toBeNull();
+        expect(environment?.getStatus().running).toBe(false);
+      } finally {
+        server.stop(true);
+        if (originalEnv === undefined) {
+          delete process.env.PANEL_DOCKER_SOCKET;
+        } else {
+          process.env.PANEL_DOCKER_SOCKET = originalEnv;
+        }
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    },
+    10000,
   );
 });

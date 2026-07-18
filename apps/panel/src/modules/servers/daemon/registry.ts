@@ -114,7 +114,19 @@ export class ServerRegistry {
     const containerName = this.getContainerName(identifier);
     const impl = new DockerEnvironmentImpl(containerName);
     const environment = new Environment(impl);
-    const existing = await findContainer(containerName);
+    // findContainer throws on any real Docker daemon error other than 404
+    // (see docker-client.ts). getOrCreateEnvironment's contract - relied on
+    // by every other caller in this class, and critically by the WS
+    // /servers/:identifier/socket "open" handler, which has no error
+    // handler and would otherwise hang the socket open forever with no
+    // listeners - is to always resolve (Environment or null), never
+    // reject. Treat a genuine Docker-connectivity failure here the same as
+    // "no existing container found" and fall through to constructing a
+    // fresh, not-yet-started environment; a truly broken daemon will
+    // surface loudly and safely later, when the caller's own start() call
+    // reaches DockerEnvironmentImpl.executeAsync through the HTTP start
+    // route's existing try/catch.
+    const existing = await findContainer(containerName).catch(() => null);
     if (existing?.running) {
       await impl.reattachToRunning(existing.id);
       environment.reattachRunning();
