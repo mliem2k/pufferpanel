@@ -4,6 +4,8 @@ import { Value, type ServerDefinitionType, ServerDefinition } from "../../templa
 import { Environment } from "./environment";
 import { TtyEnvironmentImpl } from "./tty-environment";
 import { ReattachedEnvironmentImpl } from "./reattached-environment";
+import { findContainer } from "./docker-client";
+import { DockerEnvironmentImpl } from "./docker-environment";
 
 function isPidAlive(pid: number): boolean {
   try {
@@ -26,6 +28,10 @@ export class ServerRegistry {
 
   getPidFilePath(identifier: string): string {
     return join(this.dataDir, "servers", identifier, "server.pid");
+  }
+
+  getContainerName(identifier: string): string {
+    return `pufferpanel-${identifier}`;
   }
 
   private getDefinitionPath(identifier: string): string {
@@ -61,6 +67,11 @@ export class ServerRegistry {
   private async createEnvironment(identifier: string): Promise<Environment | null> {
     const definition = await this.loadDefinition(identifier);
     if (!definition) return null;
+
+    if (definition.environment.type === "docker") {
+      return this.createDockerEnvironment(identifier);
+    }
+
     const pidFilePath = this.getPidFilePath(identifier);
     const rawPid = await readFile(pidFilePath, "utf-8").catch(() => null);
     if (rawPid !== null) {
@@ -89,6 +100,25 @@ export class ServerRegistry {
       await rm(pidFilePath, { force: true });
     }
     const environment = new Environment(new TtyEnvironmentImpl());
+    this.environments.set(identifier, environment);
+    return environment;
+  }
+
+  // Unlike the tty/reattachment path above, a Docker-backed Environment
+  // never needs this kind of eviction: DockerEnvironmentImpl.executeAsync is
+  // idempotently self-healing (it removes any existing container under its
+  // name before creating a new one - see docker-environment.ts), so this
+  // same cached instance can be started again later even after a previous
+  // run already exited.
+  private async createDockerEnvironment(identifier: string): Promise<Environment> {
+    const containerName = this.getContainerName(identifier);
+    const impl = new DockerEnvironmentImpl(containerName);
+    const environment = new Environment(impl);
+    const existing = await findContainer(containerName);
+    if (existing?.running) {
+      await impl.reattachToRunning(existing.id);
+      environment.reattachRunning();
+    }
     this.environments.set(identifier, environment);
     return environment;
   }

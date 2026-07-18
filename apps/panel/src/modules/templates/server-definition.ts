@@ -22,7 +22,7 @@ export type InstallStepType = Static<typeof InstallStep>;
 export const ServerDefinition = Type.Object({
   type: Type.String(),
   display: Type.String(),
-  environment: Type.Object({ type: Type.String() }),
+  environment: Type.Object({ type: Type.String(), image: Type.Optional(Type.String()) }),
   supportedEnvironments: Type.Array(Type.Object({ type: Type.String() })),
   variables: Type.Record(
     Type.String(),

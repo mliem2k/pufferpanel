@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ServerRegistry } from "./registry";
+import { dockerFetch, findContainer } from "./docker-client";
 
 function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -15,7 +16,7 @@ function waitFor(check: () => boolean | Promise<boolean>, timeoutMs = 5000): Pro
         clearInterval(interval);
         reject(new Error("waitFor timed out"));
       }
-    }, 20);
+    }, 25);
   });
 }
 
@@ -279,5 +280,83 @@ describe("ServerRegistry", () => {
       await rm(dataDir, { recursive: true, force: true });
     },
     8000,
+  );
+});
+
+describe("ServerRegistry Docker dispatch", () => {
+  test(
+    "getOrCreateEnvironment spawns a real Docker container for a docker-typed definition",
+    async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-docker-"));
+      const identifier = `docker-fresh-${Date.now()}`;
+      await seedDefinition(dataDir, identifier, {
+        type: "test-server",
+        display: "Test Server",
+        environment: { type: "docker", image: "alpine:latest" },
+        supportedEnvironments: [{ type: "docker" }],
+        variables: {},
+        execution: { command: "sleep 30" },
+      });
+      const registry = new ServerRegistry(dataDir);
+      const containerName = registry.getContainerName(identifier);
+      try {
+        const environment = await registry.getOrCreateEnvironment(identifier);
+        expect(environment).not.toBeNull();
+        await environment!.start({
+          command: "sleep 30",
+          cwd: registry.getServerDir(identifier),
+          image: "alpine:latest",
+        });
+        await waitFor(async () => (await findContainer(containerName))?.running === true);
+        expect(await environment!.isRunning()).toBe(true);
+        await environment!.kill();
+      } finally {
+        await dockerFetch(`/containers/${containerName}?force=true`, { method: "DELETE" }).catch(() => {});
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    },
+    10000,
+  );
+
+  test(
+    "getOrCreateEnvironment reattaches to an already-running container by name, on a fresh registry instance",
+    async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "pfp-registry-docker-"));
+      const identifier = `docker-reattach-${Date.now()}`;
+      await seedDefinition(dataDir, identifier, {
+        type: "test-server",
+        display: "Test Server",
+        environment: { type: "docker", image: "alpine:latest" },
+        supportedEnvironments: [{ type: "docker" }],
+        variables: {},
+        execution: { command: "sleep 30" },
+      });
+      const registryBefore = new ServerRegistry(dataDir);
+      const containerName = registryBefore.getContainerName(identifier);
+      try {
+        const environmentBefore = await registryBefore.getOrCreateEnvironment(identifier);
+        await environmentBefore!.start({
+          command: "sleep 30",
+          cwd: registryBefore.getServerDir(identifier),
+          image: "alpine:latest",
+        });
+        await waitFor(async () => (await findContainer(containerName))?.running === true);
+        const idBefore = (await findContainer(containerName))!.id;
+
+        const registryAfter = new ServerRegistry(dataDir);
+        const environmentAfter = await registryAfter.getOrCreateEnvironment(identifier);
+        expect(environmentAfter?.getStatus().running).toBe(true);
+
+        const idAfter = (await findContainer(containerName))!.id;
+        expect(idAfter).toBe(idBefore);
+
+        await environmentAfter!.stop();
+        await waitFor(async () => (await findContainer(containerName))?.running === false);
+      } finally {
+        await dockerFetch(`/containers/${containerName}?force=true`, { method: "DELETE" }).catch(() => {});
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    },
+    15000,
   );
 });
