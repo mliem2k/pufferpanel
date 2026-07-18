@@ -88,6 +88,23 @@ export async function deleteNode(db: PanelDb, id: number) {
   await db.delete(nodes).where(eq(nodes.id, id));
 }
 
+// One-time application-level backfill for rows created before this
+// migration existed (or that hit the SQL migration's placeholder default,
+// see 0001_steep_colossus.sql) - a schema migration can't generate real
+// per-row Ed25519 keypairs, only application code can. Idempotent: rows
+// that already have real key material are left untouched.
+export async function backfillNodeKeys(db: PanelDb): Promise<void> {
+  const rows = await db.select({ id: nodes.id, nodePrivateKeyPem: nodes.nodePrivateKeyPem }).from(nodes);
+  for (const row of rows) {
+    if (row.nodePrivateKeyPem !== "") continue;
+    const { publicKeyJwk, privateKeyPem } = await generateNodeKeyPair();
+    await db
+      .update(nodes)
+      .set({ nodePrivateKeyPem: privateKeyPem, nodePublicKeyJwk: JSON.stringify(publicKeyJwk), updatedAt: new Date() })
+      .where(eq(nodes.id, row.id));
+  }
+}
+
 // Idempotently seeds a real nodes row with an EXPLICIT id of 0 - the
 // reserved "this Panel's own co-located node" sentinel used by servers.ts's
 // routing logic. Needed because servers.nodeId is a NOT NULL foreign key

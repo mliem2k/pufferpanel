@@ -1,7 +1,16 @@
 import { describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { createTestDb } from "../../db/test-helper";
-import { servers } from "../../db/schema";
-import { createNode, listNodes, getNode, getNodeCredentials, ensureLocalNode, deleteNode } from "./service";
+import { servers, nodes } from "../../db/schema";
+import {
+  createNode,
+  listNodes,
+  getNode,
+  getNodeCredentials,
+  ensureLocalNode,
+  deleteNode,
+  backfillNodeKeys,
+} from "./service";
 
 describe("node service", () => {
   test("createNode generates and returns a real keypair once", async () => {
@@ -85,5 +94,46 @@ describe("node service", () => {
     });
     const rows = await db.select().from(servers);
     expect(rows[0]?.nodeId).toBe(0);
+  });
+
+  test("backfillNodeKeys generates real key material for a row with the placeholder default", async () => {
+    const db = createTestDb();
+    const now = new Date();
+    const [row] = await db
+      .insert(nodes)
+      .values({
+        name: "legacy-node",
+        publicHost: "panel.mliem.com",
+        privateHost: "127.0.0.1",
+        nodePrivateKeyPem: "",
+        nodePublicKeyJwk: "",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    await backfillNodeKeys(db);
+
+    const backfilled = await getNodeCredentials(db, row!.id);
+    expect(backfilled?.nodePrivateKeyPem).toBeTruthy();
+    expect(backfilled?.nodePrivateKeyPem).toContain("PRIVATE KEY");
+
+    const [full] = await db.select().from(nodes).where(eq(nodes.id, row!.id));
+    expect(full?.nodePublicKeyJwk).toBeTruthy();
+    expect(() => JSON.parse(full!.nodePublicKeyJwk)).not.toThrow();
+  });
+
+  test("backfillNodeKeys is a no-op for a row that already has real keys", async () => {
+    const db = createTestDb();
+    const created = await createNode(db, {
+      name: "ubuntu-mliem",
+      publicHost: "panel.mliem.com",
+      privateHost: "127.0.0.1",
+    });
+
+    await backfillNodeKeys(db);
+
+    const after = await getNodeCredentials(db, created!.id);
+    expect(after?.nodePrivateKeyPem).toBe(created!.nodePrivateKeyPem);
   });
 });
